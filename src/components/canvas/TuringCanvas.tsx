@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -12,10 +12,12 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import { useTuringStore } from '../../store/useTuringStore';
+import { TuringNode, TuringEdge } from '../../types/turing';
 import { StateNode } from './StateNode';
 import { OperationNode } from './OperationNode';
 import { CustomTransitionEdge } from './CustomTransitionEdge';
 import { RuleModal } from './RuleModal';
+import { NodeInspector } from './NodeInspector';
 import {
   Plus,
   Play,
@@ -26,7 +28,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   PenTool,
-  StopCircle,
+  Square,
 } from 'lucide-react';
 
 const nodeTypes = {
@@ -42,14 +44,28 @@ const defaultEdgeOptions = {
   type: 'customTransition',
   markerEnd: {
     type: MarkerType.ArrowClosed,
-    width: 18,
-    height: 18,
-    color: '#64748b',
+    width: 14,
+    height: 14,
+    color: '#71717a',
   },
 };
 
+const EMPTY_NODES: TuringNode[] = [];
+const EMPTY_EDGES: TuringEdge[] = [];
+const defaultFitViewOptions = { padding: 0.2 };
+
+const miniMapNodeColor = (n: any) => {
+  if (n.type === 'stateNode') {
+    const data = n.data as any;
+    if (data?.stateType === 'initial') return '#10b981';
+    if (data?.stateType === 'halt') return '#f59e0b';
+    return '#71717a';
+  }
+  return '#6366f1';
+};
+
 const TuringCanvasInner: React.FC = () => {
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
+  const activeProjectId = useTuringStore((s) => s.activeProjectId);
   const theme = useTuringStore((s) => s.theme);
   const onNodesChange = useTuringStore((s) => s.onNodesChange);
   const onEdgesChange = useTuringStore((s) => s.onEdgesChange);
@@ -61,8 +77,36 @@ const TuringCanvasInner: React.FC = () => {
   const addOperationNode = useTuringStore((s) => s.addOperationNode);
   const applyAutoLayout = useTuringStore((s) => s.applyAutoLayout);
 
-  const project = getActiveProject();
+  const nodes = useTuringStore((s) => {
+    const p = s.projects.find((proj) => proj.id === s.activeProjectId);
+    return p ? p.nodes : EMPTY_NODES;
+  });
+  const edges = useTuringStore((s) => {
+    const p = s.projects.find((proj) => proj.id === s.activeProjectId);
+    return p ? p.edges : EMPTY_EDGES;
+  });
+  const mode = useTuringStore((s) => {
+    const p = s.projects.find((proj) => proj.id === s.activeProjectId);
+    return p ? p.mode : '5-tuple';
+  });
+  const subMode = useTuringStore((s) => {
+    const p = s.projects.find((proj) => proj.id === s.activeProjectId);
+    return p ? p.subMode : 'state-graph';
+  });
+  const firstAlphabetSymbol = useTuringStore((s) => {
+    const p = s.projects.find((proj) => proj.id === s.activeProjectId);
+    return p?.alphabet.symbols[0] || '1';
+  });
+
   const { fitView } = useReactFlow();
+
+  // Re-fit view when switching active project
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fitView({ duration: 300, padding: 0.2 });
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [activeProjectId, fitView]);
 
   const handleAutoLayout = useCallback(() => {
     applyAutoLayout();
@@ -72,25 +116,25 @@ const TuringCanvasInner: React.FC = () => {
   }, [applyAutoLayout, fitView]);
 
   return (
-    <div className="relative w-full h-full bg-slate-50 dark:bg-slate-950 overflow-hidden">
-      {/* Floating Canvas Action Bar */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 p-1.5 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-lg backdrop-blur-md">
-        {project.mode === '5-tuple' || project.subMode === 'state-graph' ? (
+    <div className="relative w-full h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+      {/* Precision Floating Action Bar */}
+      <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 p-1 rounded-md bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 shadow-xs text-xs">
+        {mode === '5-tuple' || subMode === 'state-graph' ? (
           <>
             <button
               type="button"
               onClick={() => addStateNode('normal')}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/60 border border-sky-200 dark:border-sky-800 transition-colors"
-              title="Добавить обычное состояние"
+              className="flex items-center gap-1 px-2 py-1 font-medium rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 transition-colors"
+              title="Добавить промежуточное состояние (q)"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>+ Состояние (q)</span>
+              <span>+ Состояние</span>
             </button>
             <button
               type="button"
               onClick={() => addStateNode('halt')}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 transition-colors"
-              title="Добавить конечное состояние останова"
+              className="flex items-center gap-1 px-2 py-1 font-medium rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-amber-700 dark:text-amber-400 border border-zinc-200 dark:border-zinc-700 transition-colors"
+              title="Добавить состояние останова (Halt)"
             >
               <CircleDot className="w-3.5 h-3.5" />
               <span>+ Halt</span>
@@ -101,7 +145,7 @@ const TuringCanvasInner: React.FC = () => {
             <button
               type="button"
               onClick={() => addOperationNode('START', 'START')}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800"
+              className="flex items-center gap-1 px-2 py-1 font-medium rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-300 dark:border-emerald-800 transition-colors"
               title="Точка входа START"
             >
               <Play className="w-3 h-3 fill-current" />
@@ -110,8 +154,8 @@ const TuringCanvasInner: React.FC = () => {
             <button
               type="button"
               onClick={() => addOperationNode('SHIFT_L', 'l')}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-              title="Сдвиг влево на 1 ячейку"
+              className="flex items-center gap-1 px-2 py-1 font-mono font-medium rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 transition-colors"
+              title="Сдвиг влево на 1 ячейку (l)"
             >
               <ArrowLeft className="w-3 h-3" />
               <span>l</span>
@@ -119,8 +163,8 @@ const TuringCanvasInner: React.FC = () => {
             <button
               type="button"
               onClick={() => addOperationNode('SHIFT_R', 'r')}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-              title="Сдвиг вправо на 1 ячейку"
+              className="flex items-center gap-1 px-2 py-1 font-mono font-medium rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 transition-colors"
+              title="Сдвиг вправо на 1 ячейку (r)"
             >
               <ArrowRight className="w-3 h-3" />
               <span>r</span>
@@ -128,8 +172,8 @@ const TuringCanvasInner: React.FC = () => {
             <button
               type="button"
               onClick={() => addOperationNode('SEARCH_L', 'L')}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-              title="Сдвиг влево до пробела"
+              className="flex items-center gap-1 px-2 py-1 font-mono font-medium rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 transition-colors"
+              title="Поиск влево до пробела (L)"
             >
               <ChevronsLeft className="w-3 h-3" />
               <span>L</span>
@@ -137,8 +181,8 @@ const TuringCanvasInner: React.FC = () => {
             <button
               type="button"
               onClick={() => addOperationNode('SEARCH_R', 'R')}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-              title="Сдвиг вправо до пробела"
+              className="flex items-center gap-1 px-2 py-1 font-mono font-medium rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 transition-colors"
+              title="Поиск вправо до пробела (R)"
             >
               <ChevronsRight className="w-3 h-3" />
               <span>R</span>
@@ -146,9 +190,9 @@ const TuringCanvasInner: React.FC = () => {
             <button
               type="button"
               onClick={() =>
-                addOperationNode('WRITE_SYM', `[${project.alphabet.symbols[0] || '1'}]`, project.alphabet.symbols[0] || '1')
+                addOperationNode('WRITE_SYM', `[${firstAlphabetSymbol}]`, firstAlphabetSymbol)
               }
-              className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-lg bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 hover:bg-violet-100 border border-violet-200 dark:border-violet-800"
+              className="flex items-center gap-1 px-2 py-1 font-mono font-medium rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 transition-colors"
               title="Запись символа"
             >
               <PenTool className="w-3 h-3" />
@@ -157,37 +201,40 @@ const TuringCanvasInner: React.FC = () => {
             <button
               type="button"
               onClick={() => addOperationNode('FINISH', 'FINISH')}
-              className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 border border-rose-200 dark:border-rose-800"
+              className="flex items-center gap-1 px-2 py-1 font-medium rounded bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-300 dark:border-rose-800 transition-colors"
               title="Точка останова FINISH"
             >
-              <StopCircle className="w-3 h-3" />
+              <Square className="w-3 h-3" />
               <span>FINISH</span>
             </button>
           </>
         )}
 
-        <div className="w-[1px] h-5 bg-slate-200 dark:bg-slate-800 mx-1" />
+        <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-0.5" />
 
         <button
           type="button"
           onClick={handleAutoLayout}
-          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
-          title="Автоматическая укладка графа (Dagre Auto-Layout)"
+          className="flex items-center gap-1 px-2 py-1 font-medium rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 transition-colors"
+          title="Автоматическая раскладка графа (Dagre)"
         >
-          <LayoutGrid className="w-3.5 h-3.5 text-sky-500" />
-          <span>Авто-раскладка</span>
+          <LayoutGrid className="w-3.5 h-3.5 text-zinc-500" />
+          <span>Раскладка</span>
         </button>
       </div>
 
       <ReactFlow
-        nodes={project.nodes}
-        edges={project.edges}
+        nodes={nodes}
+        edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
+        nodesDraggable={true}
+        nodesConnectable={true}
+        elementsSelectable={true}
         onNodeClick={(_, node) => {
           setSelectedNodeId(node.id);
           setSelectedEdgeId(null);
@@ -201,37 +248,30 @@ const TuringCanvasInner: React.FC = () => {
           setSelectedEdgeId(null);
         }}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
+        fitViewOptions={defaultFitViewOptions}
         minZoom={0.2}
         maxZoom={2.5}
         colorMode={theme}
       >
         <Background
           variant={BackgroundVariant.Dots}
-          gap={18}
-          size={1.5}
-          color={theme === 'dark' ? '#334155' : '#cbd5e1'}
+          gap={16}
+          size={1.2}
+          color={theme === 'dark' ? '#27272a' : '#d4d4d8'}
         />
         <Controls
           showInteractive={false}
-          className="!bg-white/90 dark:!bg-slate-900/90 !border-slate-200 dark:!border-slate-800 !shadow-lg !rounded-xl overflow-hidden"
+          className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-xs !rounded-md overflow-hidden"
         />
         <MiniMap
-          nodeColor={(n) => {
-            if (n.type === 'stateNode') {
-              const data = n.data as any;
-              if (data?.stateType === 'initial') return '#10b981';
-              if (data?.stateType === 'halt') return '#f59e0b';
-              return '#0284c7';
-            }
-            return '#8b5cf6';
-          }}
-          maskColor={theme === 'dark' ? 'rgba(15, 23, 42, 0.7)' : 'rgba(241, 245, 249, 0.7)'}
-          className="!bg-white/90 dark:!bg-slate-900/90 !border-slate-200 dark:!border-slate-800 !shadow-lg !rounded-xl overflow-hidden"
+          nodeColor={miniMapNodeColor}
+          maskColor={theme === 'dark' ? 'rgba(9, 9, 11, 0.75)' : 'rgba(244, 244, 245, 0.75)'}
+          className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-xs !rounded-md overflow-hidden"
         />
       </ReactFlow>
 
       <RuleModal />
+      <NodeInspector />
     </div>
   );
 };

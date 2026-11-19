@@ -19,73 +19,73 @@ export const StateNode = memo(({ id, data, selected }: NodeProps) => {
   return (
     <div
       className={clsx(
-        'relative group min-w-[120px] rounded-xl px-4 py-2.5 transition-all duration-200 border-2 select-none shadow-md backdrop-blur-md',
-        // Background & border
+        'relative group min-w-[110px] rounded-md px-3 py-2 select-none transition-colors border',
+        // Background and border
         isCurrent
-          ? 'bg-amber-500/20 border-amber-400 ring-4 ring-amber-400/30 scale-105'
+          ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 dark:border-amber-400 shadow-xs ring-1 ring-amber-500/40'
           : selected
-          ? 'bg-sky-500/15 border-sky-400 ring-2 ring-sky-400/40'
-          : 'bg-white/90 dark:bg-slate-900/90 border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500',
-        // Double ring effect for halt/final states
-        isFinal && 'ring-2 ring-offset-2 ring-offset-slate-900 ring-slate-400 dark:ring-slate-500'
+          ? 'bg-sky-50/50 dark:bg-sky-950/30 border-sky-500 ring-1 ring-sky-500/30'
+          : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 shadow-xs',
+        // Classical Automata theory double-border for halt/accept/reject states
+        isFinal && 'outline outline-1 outline-offset-2 outline-zinc-400 dark:outline-zinc-600'
       )}
     >
-      {/* Handles */}
+      {/* Precision Port Handles */}
       <Handle
         type="target"
         position={Position.Top}
         id="top"
-        className="!w-3 !h-3 !bg-slate-400 dark:!bg-slate-500 !border-2 !border-white dark:!border-slate-900 !rounded-full transition-transform hover:!scale-125"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        className="!w-3 !h-3 !bg-sky-500 !border-2 !border-white dark:!border-slate-900 !rounded-full transition-transform hover:!scale-125"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        className="!w-3 !h-3 !bg-sky-500 !border-2 !border-white dark:!border-slate-900 !rounded-full transition-transform hover:!scale-125"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="target"
         position={Position.Left}
         id="left"
-        className="!w-3 !h-3 !bg-slate-400 dark:!bg-slate-500 !border-2 !border-white dark:!border-slate-900 !rounded-full transition-transform hover:!scale-125"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
       />
 
       {/* Header with state indicator */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
           {isInitial && (
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+            <span className="flex-shrink-0 text-emerald-600 dark:text-emerald-400" title="Начальное состояние">
               <Play className="w-3 h-3 fill-current" />
             </span>
           )}
           {isAccept && (
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="w-3.5 h-3.5" />
+            <span className="flex-shrink-0 text-teal-600 dark:text-teal-400" title="Допускающее состояние">
+              <CheckCircle2 className="w-3 h-3" />
             </span>
           )}
           {isReject && (
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-400">
-              <XCircle className="w-3.5 h-3.5" />
+            <span className="flex-shrink-0 text-rose-600 dark:text-rose-400" title="Отвергающее состояние">
+              <XCircle className="w-3 h-3" />
             </span>
           )}
           {isHalt && !isAccept && !isReject && (
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400">
-              <CircleDot className="w-3.5 h-3.5" />
+            <span className="flex-shrink-0 text-amber-600 dark:text-amber-400" title="Состояние останова">
+              <CircleDot className="w-3 h-3" />
             </span>
           )}
 
           <span
             className={clsx(
-              'font-mono text-base font-bold tracking-tight',
+              'font-mono text-xs font-bold tracking-tight truncate',
               isCurrent
-                ? 'text-amber-600 dark:text-amber-300'
-                : 'text-slate-800 dark:text-slate-100'
+                ? 'text-amber-700 dark:text-amber-300'
+                : 'text-zinc-900 dark:text-zinc-100'
             )}
           >
             {nodeData.label || id}
@@ -95,12 +95,12 @@ export const StateNode = memo(({ id, data, selected }: NodeProps) => {
         {/* State type badge */}
         <span
           className={clsx(
-            'text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded',
-            isInitial && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-            isHalt && 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-            isAccept && 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-            isReject && 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-            !isInitial && !isFinal && 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+            'text-[9px] uppercase font-mono font-medium px-1 py-0.2 rounded border flex-shrink-0',
+            isInitial && 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10',
+            isHalt && 'border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10',
+            isAccept && 'border-teal-500/30 text-teal-600 dark:text-teal-400 bg-teal-500/10',
+            isReject && 'border-rose-500/30 text-rose-600 dark:text-rose-400 bg-rose-500/10',
+            !isInitial && !isFinal && 'border-zinc-200 dark:border-zinc-700 text-zinc-500 bg-zinc-100 dark:bg-zinc-800'
           )}
         >
           {nodeData.stateType}
@@ -108,16 +108,15 @@ export const StateNode = memo(({ id, data, selected }: NodeProps) => {
       </div>
 
       {nodeData.description && (
-        <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
+        <div className="mt-1 text-[10px] text-zinc-500 dark:text-zinc-400 truncate font-sans">
           {nodeData.description}
         </div>
       )}
 
-      {/* Active runtime indicator dot */}
+      {/* Discrete active execution badge */}
       {isCurrent && (
-        <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500"></span>
+        <span className="absolute -top-2 right-2 px-1 py-0.2 rounded bg-amber-500 text-white font-mono text-[8px] font-bold tracking-wider shadow-xs">
+          ACT
         </span>
       )}
     </div>

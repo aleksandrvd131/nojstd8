@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import {
@@ -12,7 +13,9 @@ import {
   TestCase,
   StateNodeType,
   OperationalNodeType,
+  OperationNodeData,
   SubMachine,
+  RuntimeStats,
 } from '../types/turing';
 import {
   RuntimeState,
@@ -27,6 +30,7 @@ import {
   compileOperationalDiagramTo4Tuples,
   buildEdgesFromRules,
 } from '../engine/transpiler';
+import { exportDiagramAsImage, ExportImageOptions } from '../utils/exportImage';
 import { INITIAL_PROJECTS } from './demoProjects';
 import dagre from 'dagre';
 import { applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange, Connection } from '@xyflow/react';
@@ -108,6 +112,7 @@ interface TuringStoreState {
   } | null;
   executionSpeedMs: number;
   isRunning: boolean;
+  keyboardShortcutsEnabled: boolean;
 
   // Actions
   toggleTheme: () => void;
@@ -120,6 +125,8 @@ interface TuringStoreState {
   openRuleModal: (data: { edgeId?: string; sourceNodeId?: string; targetNodeId?: string; ruleId?: string }) => void;
   closeRuleModal: () => void;
   setExecutionSpeedMs: (speed: number) => void;
+  toggleKeyboardShortcuts: () => void;
+  setKeyboardShortcutsEnabled: (enabled: boolean) => void;
 
   // Active Project Getters & Setters
   getActiveProject: () => ProjectSession;
@@ -136,7 +143,7 @@ interface TuringStoreState {
 
   // Mode & SubMode Conversion
   setMode: (mode: TuringMode) => void;
-  setSubMode: (subMode: FourTupleSubMode) => void;
+  setSubMode: (subMode: FourTupleSubMode, force?: boolean) => void;
 
   // Alphabet Management
   setAlphabetSymbols: (symbols: string[]) => void;
@@ -162,6 +169,7 @@ interface TuringStoreState {
   addFourTupleRule: (rule: Omit<FourTupleRule, 'id'>) => void;
   updateFourTupleRule: (id: string, rule: Partial<FourTupleRule>) => void;
   deleteFourTupleRule: (id: string) => void;
+  deleteEdgeRule: (edgeId: string, ruleId: string) => void;
 
   // Tape & Debugger
   setTapeCell: (pos: number, sym: string) => void;
@@ -175,6 +183,9 @@ interface TuringStoreState {
   stepBack: () => void;
   startRunning: () => void;
   pauseRunning: () => void;
+  toggleRunning: () => void;
+  getRuntimeStats: () => RuntimeStats;
+  exportDiagramImage: (options?: ExportImageOptions) => Promise<string | null>;
 
   // Tests
   addTestCase: (tc: Omit<TestCase, 'id'>) => void;
@@ -183,6 +194,37 @@ interface TuringStoreState {
   runAllTestCases: () => void;
   runSingleTestCase: (id: string) => void;
 }
+
+const memoryStorage = new Map<string, string>();
+
+export const safeStorage = {
+  getItem: (name: string): string | null => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage.getItem(name);
+      }
+    } catch {}
+    return memoryStorage.get(name) ?? null;
+  },
+  setItem: (name: string, value: string): void => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(name, value);
+        return;
+      }
+    } catch {}
+    memoryStorage.set(name, value);
+  },
+  removeItem: (name: string): void => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(name);
+        return;
+      }
+    } catch {}
+    memoryStorage.delete(name);
+  },
+};
 
 export const useTuringStore = create<TuringStoreState>()(
   persist(
@@ -202,6 +244,7 @@ export const useTuringStore = create<TuringStoreState>()(
       ruleModalData: null,
       executionSpeedMs: 250,
       isRunning: false,
+      keyboardShortcutsEnabled: true,
 
       toggleTheme: () =>
         set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
@@ -215,6 +258,9 @@ export const useTuringStore = create<TuringStoreState>()(
       openRuleModal: (data) => set({ isRuleModalOpen: true, ruleModalData: data }),
       closeRuleModal: () => set({ isRuleModalOpen: false, ruleModalData: null }),
       setExecutionSpeedMs: (speed) => set({ executionSpeedMs: speed }),
+      toggleKeyboardShortcuts: () =>
+        set((state) => ({ keyboardShortcutsEnabled: !state.keyboardShortcutsEnabled })),
+      setKeyboardShortcutsEnabled: (enabled) => set({ keyboardShortcutsEnabled: enabled }),
 
       getActiveProject: () => {
         const { projects, activeProjectId } = get();
@@ -410,37 +456,37 @@ export const useTuringStore = create<TuringStoreState>()(
         set({ runtime: initRuntimeState(updatedProject) });
       },
 
-      setSubMode: (newSubMode: FourTupleSubMode) => {
+      setSubMode: (newSubMode: FourTupleSubMode, force = false) => {
         const project = get().getActiveProject();
         if (project.mode !== '4-tuple' || project.subMode === newSubMode) return;
 
         let updatedProject: ProjectSession;
         if (newSubMode === 'operational') {
-          // Operational VTM Diagram
-          updatedProject = {
-            ...project,
-            subMode: 'operational',
-            nodes: [
-              {
-                id: 'op_start',
-                type: 'operationNode',
-                position: { x: 120, y: 150 },
-                data: { label: 'START', opType: 'START' },
-              },
-              {
-                id: 'op_step_r',
-                type: 'operationNode',
-                position: { x: 300, y: 150 },
-                data: { label: 'r', opType: 'SHIFT_R' },
-              },
-              {
-                id: 'op_finish',
-                type: 'operationNode',
-                position: { x: 500, y: 150 },
-                data: { label: 'FINISH', opType: 'FINISH' },
-              },
-            ],
-            edges: [
+          // Check if switching will overwrite user graph content
+          const hasUserContent =
+            project.nodes.some((n) => n.type === 'stateNode') ||
+            project.rules4.length > 0 ||
+            project.rules5.length > 0;
+
+          if (hasUserContent && !force && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+            const confirmed = window.confirm(
+              'Переключение в режим операционной диаграммы (VTM) заменит текущий граф состояний на схему VTM. Продолжить?'
+            );
+            if (!confirmed) return;
+          }
+
+          // If the project already has operational nodes, preserve them
+          const existingOpNodes = project.nodes.filter((n) => n.type === 'operationNode');
+          if (existingOpNodes.length >= 2 && existingOpNodes.some((n) => (n.data as OperationNodeData).opType === 'START')) {
+            const rules4 = compileOperationalDiagramTo4Tuples(project.nodes, project.edges, project.alphabet);
+            updatedProject = {
+              ...project,
+              subMode: 'operational',
+              rules4,
+            };
+          } else {
+            // Operational VTM Diagram default template
+            const defaultTemplateEdges: TuringEdge[] = [
               {
                 id: 'e_start_r',
                 source: 'op_start',
@@ -463,8 +509,43 @@ export const useTuringStore = create<TuringStoreState>()(
                   rules: [{ id: 'r_fin', readSymbol: '_' }],
                 },
               },
-            ],
-          };
+            ];
+
+            const defaultTemplateNodes: TuringNode[] = [
+              {
+                id: 'op_start',
+                type: 'operationNode',
+                position: { x: 120, y: 150 },
+                data: { label: 'START', opType: 'START' },
+              },
+              {
+                id: 'op_step_r',
+                type: 'operationNode',
+                position: { x: 300, y: 150 },
+                data: { label: 'r', opType: 'SHIFT_R' },
+              },
+              {
+                id: 'op_finish',
+                type: 'operationNode',
+                position: { x: 500, y: 150 },
+                data: { label: 'FINISH', opType: 'FINISH' },
+              },
+            ];
+
+            const compiledRules = compileOperationalDiagramTo4Tuples(
+              defaultTemplateNodes,
+              defaultTemplateEdges,
+              project.alphabet
+            );
+
+            updatedProject = {
+              ...project,
+              subMode: 'operational',
+              nodes: defaultTemplateNodes,
+              edges: defaultTemplateEdges,
+              rules4: compiledRules,
+            };
+          }
         } else {
           // State graph
           const compiledRules = compileOperationalDiagramTo4Tuples(
@@ -473,9 +554,31 @@ export const useTuringStore = create<TuringStoreState>()(
             project.alphabet
           );
           const edges = buildEdgesFromRules(compiledRules, '4-tuple', 'state-graph');
+
+          // Convert operational nodes into state nodes if needed
+          const stateNodes: TuringNode[] = project.nodes.map((n) => {
+            if (n.type === 'operationNode') {
+              const opData = n.data as OperationNodeData;
+              const isInitial = opData.opType === 'START';
+              const isHalt = opData.opType === 'FINISH';
+              return {
+                id: n.id,
+                type: 'stateNode' as const,
+                position: { ...n.position },
+                data: {
+                  label: opData.label || n.id,
+                  stateType: isInitial ? 'initial' : isHalt ? 'halt' : 'normal',
+                  description: opData.description,
+                },
+              };
+            }
+            return n;
+          });
+
           updatedProject = {
             ...project,
             subMode: 'state-graph',
+            nodes: stateNodes,
             rules4: compiledRules,
             edges,
           };
@@ -521,6 +624,28 @@ export const useTuringStore = create<TuringStoreState>()(
               ? (newSymbol as BlankSymbolType)
               : prev.alphabet.blankSymbol;
 
+          // Update nodes (specifically OperationNode with opType === 'WRITE_SYM')
+          const nodes = prev.nodes.map((node) => {
+            if (node.type === 'operationNode') {
+              const opData = node.data as OperationNodeData;
+              if (opData.opType === 'WRITE_SYM' && opData.symbolToWrite === oldSymbol) {
+                const updatedLabel =
+                  opData.label === `[${oldSymbol}]` || opData.label === oldSymbol
+                    ? `[${newSymbol}]`
+                    : opData.label;
+                return {
+                  ...node,
+                  data: {
+                    ...opData,
+                    symbolToWrite: newSymbol,
+                    label: updatedLabel,
+                  },
+                };
+              }
+            }
+            return node;
+          });
+
           // Update rules5
           const rules5 = prev.rules5.map((r) => ({
             ...r,
@@ -529,7 +654,7 @@ export const useTuringStore = create<TuringStoreState>()(
           }));
 
           // Update rules4
-          const rules4 = prev.rules4.map((r) => ({
+          let rules4 = prev.rules4.map((r) => ({
             ...r,
             readSymbol: r.readSymbol === oldSymbol ? newSymbol : r.readSymbol,
             command: r.command === oldSymbol ? newSymbol : r.command,
@@ -551,6 +676,11 @@ export const useTuringStore = create<TuringStoreState>()(
             },
           }));
 
+          // If operational mode, re-derive rules4 with the new symbols and nodes
+          if (prev.subMode === 'operational') {
+            rules4 = compileOperationalDiagramTo4Tuples(nodes, edges, { symbols, blankSymbol });
+          }
+
           // Update initial tape
           const initialTape: Record<number, string> = {};
           for (const [pos, val] of Object.entries(prev.initialTape)) {
@@ -566,14 +696,42 @@ export const useTuringStore = create<TuringStoreState>()(
               : undefined,
           }));
 
+          // Update subMachines if any
+          const subMachines = (prev.subMachines || []).map((sm) => ({
+            ...sm,
+            nodes: sm.nodes.map((node) => {
+              if (node.type === 'operationNode') {
+                const opData = node.data as OperationNodeData;
+                if (opData.opType === 'WRITE_SYM' && opData.symbolToWrite === oldSymbol) {
+                  return {
+                    ...node,
+                    data: {
+                      ...opData,
+                      symbolToWrite: newSymbol,
+                      label: opData.label === `[${oldSymbol}]` ? `[${newSymbol}]` : opData.label,
+                    },
+                  };
+                }
+              }
+              return node;
+            }),
+            rules4: (sm.rules4 || []).map((r) => ({
+              ...r,
+              readSymbol: r.readSymbol === oldSymbol ? newSymbol : r.readSymbol,
+              command: r.command === oldSymbol ? newSymbol : r.command,
+            })),
+          }));
+
           return {
             ...prev,
             alphabet: { symbols, blankSymbol },
+            nodes,
             rules5,
             rules4,
             edges,
             initialTape,
             testCases,
+            subMachines,
           };
         });
 
@@ -584,17 +742,80 @@ export const useTuringStore = create<TuringStoreState>()(
 
       // --- Graph / React Flow ---
       onNodesChange: (changes: NodeChange<TuringNode>[]) => {
-        get().updateActiveProject((prev) => ({
-          ...prev,
-          nodes: applyNodeChanges(changes, prev.nodes),
-        }));
+        get().updateActiveProject((prev) => {
+          const newNodes = applyNodeChanges(changes, prev.nodes);
+          const removedIds = new Set(
+            changes.filter((c) => c.type === 'remove').map((c) => c.id)
+          );
+          if (removedIds.size === 0) {
+            return {
+              ...prev,
+              nodes: newNodes,
+            };
+          }
+          const newEdges = prev.edges.filter(
+            (e) => !removedIds.has(e.source) && !removedIds.has(e.target)
+          );
+          const rules5 = prev.rules5.filter(
+            (r) => !removedIds.has(r.fromState) && !removedIds.has(r.toState)
+          );
+          let rules4 = prev.rules4.filter(
+            (r) => !removedIds.has(r.fromState) && !removedIds.has(r.toState)
+          );
+          if (prev.subMode === 'operational') {
+            rules4 = compileOperationalDiagramTo4Tuples(newNodes, newEdges, prev.alphabet);
+          }
+          return {
+            ...prev,
+            nodes: newNodes,
+            edges: newEdges,
+            rules5,
+            rules4,
+          };
+        });
       },
 
       onEdgesChange: (changes: EdgeChange<TuringEdge>[]) => {
-        get().updateActiveProject((prev) => ({
-          ...prev,
-          edges: applyEdgeChanges(changes, prev.edges),
-        }));
+        get().updateActiveProject((prev) => {
+          const removedChanges = changes.filter((c) => c.type === 'remove');
+          if (removedChanges.length === 0) {
+            return {
+              ...prev,
+              edges: applyEdgeChanges(changes, prev.edges),
+            };
+          }
+
+          const removedIds = new Set(removedChanges.map((c) => c.id));
+          const removedEdges = prev.edges.filter((e) => removedIds.has(e.id));
+          const newEdges = applyEdgeChanges(changes, prev.edges);
+
+          const removedPairs = new Set(removedEdges.map((e) => `${e.source}->${e.target}`));
+          const removedRuleIds = new Set<string>();
+          for (const e of removedEdges) {
+            for (const r of e.data?.rules || []) {
+              if (r.id) removedRuleIds.add(r.id);
+            }
+          }
+
+          const rules5 = prev.rules5.filter(
+            (r) => !removedPairs.has(`${r.fromState}->${r.toState}`) && !removedRuleIds.has(r.id)
+          );
+
+          let rules4 = prev.rules4.filter(
+            (r) => !removedPairs.has(`${r.fromState}->${r.toState}`) && !removedRuleIds.has(r.id)
+          );
+
+          if (prev.subMode === 'operational') {
+            rules4 = compileOperationalDiagramTo4Tuples(prev.nodes, newEdges, prev.alphabet);
+          }
+
+          return {
+            ...prev,
+            edges: newEdges,
+            rules5,
+            rules4,
+          };
+        });
       },
 
       onConnect: (connection: Connection) => {
@@ -607,8 +828,14 @@ export const useTuringStore = create<TuringStoreState>()(
 
       addStateNode: (type: StateNodeType, label?: string) => {
         const project = get().getActiveProject();
-        const count = project.nodes.filter((n) => n.type === 'stateNode').length;
-        const newId = `q${count}`;
+        let idx = project.nodes.length;
+        let newId = type === 'halt' ? 'q_halt' : `q${idx}`;
+        const existingIds = new Set(project.nodes.map((n) => n.id));
+        while (existingIds.has(newId)) {
+          idx++;
+          newId = type === 'halt' ? `q_halt_${idx}` : `q${idx}`;
+        }
+        const count = project.nodes.length;
         const newNode: TuringNode = {
           id: newId,
           type: 'stateNode',
@@ -630,8 +857,13 @@ export const useTuringStore = create<TuringStoreState>()(
 
       addOperationNode: (opType: OperationalNodeType, label?: string, symbolToWrite?: string) => {
         const project = get().getActiveProject();
-        const count = project.nodes.length;
-        const newId = `op_${opType.toLowerCase()}_${count}`;
+        let count = project.nodes.length;
+        let newId = `op_${opType.toLowerCase()}_${count}`;
+        const existingIds = new Set(project.nodes.map((n) => n.id));
+        while (existingIds.has(newId)) {
+          count++;
+          newId = `op_${opType.toLowerCase()}_${count}`;
+        }
         const newNode: TuringNode = {
           id: newId,
           type: 'operationNode',
@@ -662,13 +894,22 @@ export const useTuringStore = create<TuringStoreState>()(
       },
 
       deleteNode: (id: string) => {
-        get().updateActiveProject((prev) => ({
-          ...prev,
-          nodes: prev.nodes.filter((n) => n.id !== id),
-          edges: prev.edges.filter((e) => e.source !== id && e.target !== id),
-          rules5: prev.rules5.filter((r) => r.fromState !== id && r.toState !== id),
-          rules4: prev.rules4.filter((r) => r.fromState !== id && r.toState !== id),
-        }));
+        get().updateActiveProject((prev) => {
+          const newNodes = prev.nodes.filter((n) => n.id !== id);
+          const newEdges = prev.edges.filter((e) => e.source !== id && e.target !== id);
+          const rules5 = prev.rules5.filter((r) => r.fromState !== id && r.toState !== id);
+          let rules4 = prev.rules4.filter((r) => r.fromState !== id && r.toState !== id);
+          if (prev.subMode === 'operational') {
+            rules4 = compileOperationalDiagramTo4Tuples(newNodes, newEdges, prev.alphabet);
+          }
+          return {
+            ...prev,
+            nodes: newNodes,
+            edges: newEdges,
+            rules5,
+            rules4,
+          };
+        });
       },
 
       applyAutoLayout: () => {
@@ -731,9 +972,73 @@ export const useTuringStore = create<TuringStoreState>()(
 
       deleteFourTupleRule: (id) => {
         get().updateActiveProject((prev) => {
+          if (prev.subMode === 'operational') {
+            const newEdges: TuringEdge[] = prev.edges.map((e) => {
+              const rules = e.data?.rules || [];
+              if (rules.some((r) => r.id === id)) {
+                return {
+                  ...e,
+                  data: {
+                    ...e.data,
+                    mode: e.data?.mode ?? prev.mode,
+                    rules: rules.filter((r) => r.id !== id),
+                  },
+                };
+              }
+              return e;
+            });
+            const rules4 = compileOperationalDiagramTo4Tuples(
+              prev.nodes,
+              newEdges,
+              prev.alphabet
+            );
+            return {
+              ...prev,
+              edges: newEdges,
+              rules4,
+            };
+          }
+
           const rules4 = prev.rules4.filter((r) => r.id !== id);
           const edges = buildEdgesFromRules(rules4, '4-tuple', prev.subMode);
           return { ...prev, rules4, edges };
+        });
+      },
+
+      deleteEdgeRule: (edgeId: string, ruleId: string) => {
+        get().updateActiveProject((prev) => {
+          const newEdges: TuringEdge[] = prev.edges.map((e) => {
+            if (e.id === edgeId || (e.data?.rules || []).some((r) => r.id === ruleId)) {
+              const rules = (e.data?.rules || []).filter((r) => r.id !== ruleId);
+              return {
+                ...e,
+                data: {
+                  ...e.data,
+                  mode: e.data?.mode ?? prev.mode,
+                  rules,
+                },
+              };
+            }
+            return e;
+          });
+
+          const rules5 = prev.rules5.filter((r) => r.id !== ruleId);
+          let rules4 = prev.rules4.filter((r) => r.id !== ruleId);
+
+          if (prev.subMode === 'operational') {
+            rules4 = compileOperationalDiagramTo4Tuples(
+              prev.nodes,
+              newEdges,
+              prev.alphabet
+            );
+          }
+
+          return {
+            ...prev,
+            edges: newEdges,
+            rules5,
+            rules4,
+          };
         });
       },
 
@@ -815,6 +1120,31 @@ export const useTuringStore = create<TuringStoreState>()(
         set({ isRunning: false });
       },
 
+      toggleRunning: () => {
+        const { isRunning, startRunning, pauseRunning } = get();
+        if (isRunning) pauseRunning();
+        else startRunning();
+      },
+
+      getRuntimeStats: () => {
+        const project = get().getActiveProject();
+        return getRuntimeStats(project, get().runtime);
+      },
+
+      exportDiagramImage: async (options?: ExportImageOptions) => {
+        try {
+          const project = get().getActiveProject();
+          const filename = options?.filename ?? `${project.name.replace(/\s+/g, '_')}_diagram`;
+          return await exportDiagramAsImage('.react-flow', {
+            ...options,
+            filename,
+          });
+        } catch (err) {
+          console.error('Failed to export diagram image:', err);
+          return null;
+        }
+      },
+
       // --- Tests ---
       addTestCase: (tc) => {
         const newTc: TestCase = {
@@ -864,13 +1194,149 @@ export const useTuringStore = create<TuringStoreState>()(
     }),
     {
       name: 'turing_diagrammer_storage_v1',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => safeStorage),
       partialize: (state) => ({
         projects: state.projects,
         activeProjectId: state.activeProjectId,
         theme: state.theme,
         executionSpeedMs: state.executionSpeedMs,
+        keyboardShortcutsEnabled: state.keyboardShortcutsEnabled,
       }),
     }
   )
 );
+
+export const useActiveProject = (): ProjectSession => {
+  return useTuringStore((s) => {
+    return s.projects.find((p) => p.id === s.activeProjectId) || s.projects[0] || INITIAL_PROJECTS[0];
+  });
+};
+
+export function getRuntimeStats(
+  project: ProjectSession,
+  runtime: RuntimeState
+): RuntimeStats {
+  const blank = project.alphabet.blankSymbol;
+  const indices = Object.keys(runtime.tape).map(Number);
+  const nonBlankIndices = indices.filter(
+    (i) => runtime.tape[i] !== undefined && runtime.tape[i] !== blank
+  );
+
+  const minTapeIndex =
+    indices.length > 0 ? Math.min(...indices, runtime.headPosition) : runtime.headPosition;
+  const maxTapeIndex =
+    indices.length > 0 ? Math.max(...indices, runtime.headPosition) : runtime.headPosition;
+
+  const currentNode = project.nodes.find((n) => n.id === runtime.currentNodeId);
+  const currentNodeLabel = currentNode?.data?.label ?? runtime.currentNodeId;
+  const currentNodeType =
+    (currentNode?.data as any)?.stateType ?? (currentNode?.data as any)?.opType;
+  const currentSymbol = runtime.tape[runtime.headPosition] ?? blank;
+
+  return {
+    stepCount: runtime.stepCount,
+    headPosition: runtime.headPosition,
+    minTapeIndex,
+    maxTapeIndex,
+    tapeSpan: Math.max(1, maxTapeIndex - minTapeIndex + 1),
+    nonBlankCellsCount: nonBlankIndices.length,
+    currentNodeId: runtime.currentNodeId,
+    currentNodeLabel,
+    currentNodeType,
+    status: runtime.status,
+    statusMessage: runtime.statusMessage,
+    visitedPositionsCount: runtime.visitedPositions.length,
+    callStackDepth: runtime.callStack.length,
+    currentSymbol,
+  };
+}
+
+export function handleDebuggerKeyboardShortcut(
+  e: KeyboardEvent,
+  store = useTuringStore.getState()
+): boolean {
+  if (!store.keyboardShortcutsEnabled) return false;
+
+  // Ignore keystrokes when typing into input fields
+  const target = e.target as HTMLElement | null;
+  if (
+    target &&
+    (target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable)
+  ) {
+    return false;
+  }
+
+  // Space: Step forward (Shift+Space: Step back)
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (e.shiftKey) {
+      store.stepBack();
+    } else {
+      store.stepForward();
+    }
+    return true;
+  }
+
+  // Right Arrow: Step forward
+  if (e.code === 'ArrowRight' && !e.altKey) {
+    e.preventDefault();
+    store.stepForward();
+    return true;
+  }
+
+  // Left Arrow: Step back
+  if (e.code === 'ArrowLeft' && !e.altKey) {
+    e.preventDefault();
+    store.stepBack();
+    return true;
+  }
+
+  // Key R: Toggle run/pause
+  if (e.code === 'KeyR' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    store.toggleRunning();
+    return true;
+  }
+
+  // Escape: Reset execution
+  if (e.code === 'Escape') {
+    e.preventDefault();
+    store.resetExecution();
+    return true;
+  }
+
+  return false;
+}
+
+export function useKeyboardShortcuts(): void {
+  const keyboardShortcutsEnabled = useTuringStore((s) => s.keyboardShortcutsEnabled);
+  const isRunning = useTuringStore((s) => s.isRunning);
+  const stepForward = useTuringStore((s) => s.stepForward);
+  const stepBack = useTuringStore((s) => s.stepBack);
+  const toggleRunning = useTuringStore((s) => s.toggleRunning);
+  const resetExecution = useTuringStore((s) => s.resetExecution);
+
+  useEffect(() => {
+    if (!keyboardShortcutsEnabled || typeof window === 'undefined') return;
+
+    const listener = (e: KeyboardEvent) => {
+      handleDebuggerKeyboardShortcut(e);
+    };
+
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, [keyboardShortcutsEnabled, isRunning, stepForward, stepBack, toggleRunning, resetExecution]);
+}
+
+export const useRuntimeStats = (): RuntimeStats => {
+  return useTuringStore((state) => {
+    const project =
+      state.projects.find((p) => p.id === state.activeProjectId) ||
+      state.projects[0] ||
+      INITIAL_PROJECTS[0];
+    return getRuntimeStats(project, state.runtime);
+  });
+};

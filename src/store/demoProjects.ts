@@ -432,7 +432,11 @@ export const DEMO_PROJECT_3: ProjectSession = {
       data: {
         mode: '4-tuple',
         subMode: 'operational',
-        rules: [{ id: 'r3', readSymbol: '_' }],
+        rules: [
+          { id: 'r3', readSymbol: '_' },
+          { id: 'r3_hash', readSymbol: '#' },
+          { id: 'r3_wildcard', readSymbol: '*', isWildcard: true },
+        ],
       },
     },
     {

@@ -30,13 +30,13 @@ export const CustomTransitionEdge = memo(
     const openRuleModal = useTuringStore((s) => s.openRuleModal);
     const deleteFiveTupleRule = useTuringStore((s) => s.deleteFiveTupleRule);
     const deleteFourTupleRule = useTuringStore((s) => s.deleteFourTupleRule);
+    const deleteEdgeRule = useTuringStore((s) => s.deleteEdgeRule);
     const mode = edgeData?.mode || '5-tuple';
     const subMode = edgeData?.subMode;
     const isActive = runtimeActiveEdgeId === id;
 
     const isSelfLoop = source === target;
     const isBiDirectional = !!edgeData?.isBiDirectional;
-    const offsetDir = edgeData?.offsetDirection || 1;
 
     let edgePath = '';
     let labelX = 0;
@@ -58,7 +58,10 @@ export const CustomTransitionEdge = memo(
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
       const nx = -dy / len;
       const ny = dx / len;
-      const curvature = 36 * offsetDir;
+      // Normal vector (nx, ny) naturally reverses when source and target swap.
+      // Using a constant curvature offsets each directed edge to its own right side,
+      // avoiding duplicate offsetDir inversion that caused bidirectional edges to overlap.
+      const curvature = 36;
 
       const midX = (sourceX + targetX) / 2 + nx * curvature;
       const midY = (sourceY + targetY) / 2 + ny * curvature;
@@ -105,6 +108,8 @@ export const CustomTransitionEdge = memo(
       e.stopPropagation();
       if (mode === '5-tuple') {
         deleteFiveTupleRule(ruleId);
+      } else if (subMode === 'operational') {
+        deleteEdgeRule(id, ruleId);
       } else {
         deleteFourTupleRule(ruleId);
       }
@@ -121,10 +126,10 @@ export const CustomTransitionEdge = memo(
               ? '#f59e0b'
               : selected
               ? '#0284c7'
-              : '#64748b',
-            strokeWidth: isActive ? 3 : selected ? 2.5 : 1.8,
-            strokeDasharray: isActive ? '6 4' : undefined,
-            transition: 'stroke 0.2s, stroke-width 0.2s',
+              : '#71717a',
+            strokeWidth: isActive ? 2.5 : selected ? 2 : 1.5,
+            strokeDasharray: isActive ? '5 4' : undefined,
+            transition: 'stroke 0.15s, stroke-width 0.15s',
           }}
         />
 
@@ -137,7 +142,7 @@ export const CustomTransitionEdge = memo(
             }}
             className="flex flex-col items-center gap-1 z-10"
           >
-            <div className="flex flex-wrap items-center justify-center gap-1 max-w-[200px] p-1 rounded-lg bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 shadow-md backdrop-blur-sm">
+            <div className="flex flex-wrap items-center justify-center gap-1 max-w-[200px] p-1 rounded bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 shadow-xs">
               {rules.map((rule) => {
                 let text = '';
                 if (mode === '5-tuple') {
@@ -155,10 +160,10 @@ export const CustomTransitionEdge = memo(
                     key={rule.id}
                     onClick={(e) => handleRuleClick(e, rule)}
                     className={clsx(
-                      'group/pill flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium cursor-pointer transition-all',
+                      'group/pill flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium cursor-pointer transition-colors',
                       isActive
-                        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-400'
-                        : 'bg-slate-100 hover:bg-sky-100 dark:bg-slate-800 dark:hover:bg-sky-950 text-slate-700 dark:text-slate-200 border border-transparent hover:border-sky-300 dark:hover:border-sky-700'
+                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/40 font-bold'
+                        : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700'
                     )}
                     title="Нажмите для редактирования правила"
                   >
@@ -166,7 +171,7 @@ export const CustomTransitionEdge = memo(
                     <button
                       type="button"
                       onClick={(e) => handleDeleteRule(e, rule.id)}
-                      className="opacity-0 group-hover/pill:opacity-100 text-slate-400 hover:text-rose-500 transition-opacity ml-0.5"
+                      className="opacity-0 group-hover/pill:opacity-100 text-zinc-400 hover:text-rose-500 transition-opacity ml-0.5"
                       title="Удалить правило"
                     >
                       <X className="w-3 h-3" />
@@ -178,10 +183,10 @@ export const CustomTransitionEdge = memo(
               <button
                 type="button"
                 onClick={handleAddRuleClick}
-                className="flex items-center justify-center w-5 h-5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-sky-500 transition-colors"
+                className="flex items-center justify-center w-4 h-4 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
                 title="Добавить правило перехода"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3 h-3" />
               </button>
             </div>
           </div>

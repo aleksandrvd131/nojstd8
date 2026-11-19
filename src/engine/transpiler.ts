@@ -150,13 +150,51 @@ export function compileOperationalDiagramTo4Tuples(
       continue;
     }
 
+    // SEARCH_L and SEARCH_R: generate looping state until blank symbol, then branch to target
+    if (data.opType === 'SEARCH_L' || data.opType === 'SEARCH_R') {
+      const moveCmd = data.opType === 'SEARCH_L' ? 'L' : 'R';
+      const blank = alphabet.blankSymbol;
+
+      // 1. Loop on all non-blank symbols
+      for (const sym of allSymbols) {
+        if (sym === blank) continue;
+        rules4.push({
+          id: `op_${node.id}_loop_${sym}`,
+          fromState: node.id,
+          readSymbol: sym,
+          command: moveCmd,
+          toState: node.id,
+        });
+      }
+
+      // 2. Exit rule on reaching blank symbol
+      const matchingEdge = outgoing.find((e) =>
+        e.data?.rules?.some(
+          (r) =>
+            r.readSymbol === blank ||
+            r.readSymbol === '*' ||
+            r.isWildcard ||
+            (r.isComplement && r.readSymbol !== blank)
+        )
+      );
+
+      if (matchingEdge) {
+        rules4.push({
+          id: `op_${node.id}_exit_${blank}`,
+          fromState: node.id,
+          readSymbol: blank,
+          command: 'N',
+          toState: matchingEdge.target,
+        });
+      }
+      continue;
+    }
+
     // Determine the command performed by this operational node
     let command: string = 'N';
     if (data.opType === 'SHIFT_L') command = 'L';
     else if (data.opType === 'SHIFT_R') command = 'R';
     else if (data.opType === 'WRITE_SYM') command = data.symbolToWrite || alphabet.blankSymbol;
-    else if (data.opType === 'SEARCH_L') command = 'L';
-    else if (data.opType === 'SEARCH_R') command = 'R';
 
     // Outgoing transitions based on symbol condition
     for (const sym of allSymbols) {

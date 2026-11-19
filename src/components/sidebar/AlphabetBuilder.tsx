@@ -88,25 +88,25 @@ export const AlphabetBuilder: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6">
+      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between pb-4 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
                 Конструктор & Валидатор Алфавита
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 Внешний алфавит ленты с авторефакторингом правил
               </p>
             </div>
           </div>
           <button
             onClick={() => setAlphabetModalOpen(false)}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -121,7 +121,7 @@ export const AlphabetBuilder: React.FC = () => {
 
         {/* Presets */}
         <div className="mt-4">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
             Готовые академические пресеты
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -130,12 +130,12 @@ export const AlphabetBuilder: React.FC = () => {
                 key={key}
                 type="button"
                 onClick={() => applyAlphabetPreset(key)}
-                className="p-2.5 text-left rounded-xl border border-slate-200 dark:border-slate-800 hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-950/20 transition-all group"
+                className="p-2.5 text-left rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-950/20 transition-all group"
               >
-                <div className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-sky-600">
+                <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 group-hover:text-sky-600">
                   {preset.name}
                 </div>
-                <div className="text-[11px] font-mono text-slate-400 mt-1 truncate">
+                <div className="text-[11px] font-mono text-zinc-400 mt-1 truncate">
                   {preset.symbols.join(', ')}
                 </div>
               </button>
@@ -144,8 +144,8 @@ export const AlphabetBuilder: React.FC = () => {
         </div>
 
         {/* Blank symbol configuration */}
-        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+        <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
             Обозначение пустого символа (Blank Symbol)
           </label>
           <div className="grid grid-cols-4 gap-2">
@@ -157,7 +157,7 @@ export const AlphabetBuilder: React.FC = () => {
                 className={`py-2 px-3 text-sm font-mono font-bold rounded-xl border transition-all text-center ${
                   blankSymbol === blank
                     ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
-                    : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-sky-300'
+                    : 'bg-zinc-50 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:border-sky-300'
                 }`}
               >
                 {blank === '_' ? '_ (подчерк)' : blank === 'λ' ? 'λ (лямбда)' : blank === '␣' ? '␣ (пробел)' : 'a0'}
@@ -167,12 +167,12 @@ export const AlphabetBuilder: React.FC = () => {
         </div>
 
         {/* Active alphabet symbols */}
-        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+        <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-2">
             Рабочие символы ({symbols.length})
           </label>
 
-          <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-zinc-800">
             {/* Blank symbol badge */}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-xs font-mono font-bold">
               <span>{blankSymbol}</span>
@@ -185,7 +185,7 @@ export const AlphabetBuilder: React.FC = () => {
               return (
                 <div
                   key={sym}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm text-xs font-mono font-bold text-slate-800 dark:text-slate-100"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 shadow-sm text-xs font-mono font-bold text-zinc-800 dark:text-zinc-100"
                 >
                   {isEditing ? (
                     <div className="flex items-center gap-1">
@@ -214,7 +214,7 @@ export const AlphabetBuilder: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleStartRename(sym)}
-                        className="text-slate-400 hover:text-sky-500 transition-colors"
+                        className="text-zinc-400 hover:text-sky-500 transition-colors"
                         title="Переименовать символ с авторефакторингом правил"
                       >
                         <Edit3 className="w-3 h-3" />
@@ -222,7 +222,7 @@ export const AlphabetBuilder: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleRemoveSymbol(sym)}
-                        className="text-slate-400 hover:text-rose-500 transition-colors"
+                        className="text-zinc-400 hover:text-rose-500 transition-colors"
                         title="Удалить символ"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -241,7 +241,7 @@ export const AlphabetBuilder: React.FC = () => {
               placeholder="Добавить символ (букву, цифру, спецзнак)..."
               value={newChar}
               onChange={(e) => setNewChar(e.target.value)}
-              className="flex-1 px-3 py-2 text-xs font-mono rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+              className="flex-1 px-3 py-2 text-xs font-mono rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-sky-500"
             />
             <button
               type="submit"
@@ -254,11 +254,11 @@ export const AlphabetBuilder: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex justify-end mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800">
           <button
             type="button"
             onClick={() => setAlphabetModalOpen(false)}
-            className="px-5 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 transition-colors"
+            className="px-5 py-2 text-xs font-semibold rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 transition-colors"
           >
             Готово
           </button>

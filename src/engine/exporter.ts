@@ -19,13 +19,33 @@ export function importProjectFromJSON(jsonString: string): ProjectSession {
 }
 
 /**
+ * Escape LaTeX special characters (#, $, _, %, &, {, })
+ */
+export function escapeLatex(text: string): string {
+  if (!text) return '';
+  return text.replace(/[\\#$_%&{}]/g, (char) => {
+    switch (char) {
+      case '\\': return '\\textbackslash{}';
+      case '#': return '\\#';
+      case '$': return '\\$';
+      case '_': return '\\_';
+      case '%': return '\\%';
+      case '&': return '\\&';
+      case '{': return '\\{';
+      case '}': return '\\}';
+      default: return char;
+    }
+  });
+}
+
+/**
  * Generate LaTeX code for university lab reports
  */
 export function exportToLaTeX(project: ProjectSession): string {
   const { mode, subMode, alphabet, rules5, rules4, nodes } = project;
-  const blank = alphabet.blankSymbol;
-  const symbols = alphabet.symbols.join(', ');
-  const states = nodes.map((n) => n.data.label || n.id).join(', ');
+  const blank = escapeLatex(alphabet.blankSymbol);
+  const symbols = alphabet.symbols.map(escapeLatex).join(', ');
+  const states = nodes.map((n) => escapeLatex(n.data.label || n.id)).join(', ');
 
   let latex = `% Отчет по Машине Тьюринга: ${project.name}\n`;
   latex += `% Сгенерировано в Next-Gen Turing Machine IDE\n\n`;
@@ -47,7 +67,7 @@ export function exportToLaTeX(project: ProjectSession): string {
     latex += `\\begin{tabular}{|c|c|c|c|c|}\n\\hline\n`;
     latex += `\\textbf{Текущее сост.} & \\textbf{Символ} & \\textbf{Новый символ} & \\textbf{Сдвиг} & \\textbf{След. сост.} \\\\ \\hline\n`;
     for (const r of rules5) {
-      latex += `$${r.fromState}$ & '$${r.readSymbol}$' & '$${r.writeSymbol}$' & $${r.move}$ & $${r.toState}$ \\\\ \\hline\n`;
+      latex += `$${escapeLatex(r.fromState)}$ & '$${escapeLatex(r.readSymbol)}$' & '$${escapeLatex(r.writeSymbol)}$' & $${escapeLatex(r.move)}$ & $${escapeLatex(r.toState)}$ \\\\ \\hline\n`;
     }
     latex += `\\end{tabular}\n\\caption{Таблица переходов в 5-кортежах}\n\\end{table}\n`;
   } else {
@@ -55,7 +75,7 @@ export function exportToLaTeX(project: ProjectSession): string {
     latex += `\\begin{tabular}{|c|c|c|c|}\n\\hline\n`;
     latex += `\\textbf{Текущее сост.} & \\textbf{Символ} & \\textbf{Команда} & \\textbf{След. сост.} \\\\ \\hline\n`;
     for (const r of rules4) {
-      latex += `$${r.fromState}$ & '$${r.readSymbol}$' & '$${r.command}$' & $${r.toState}$ \\\\ \\hline\n`;
+      latex += `$${escapeLatex(r.fromState)}$ & '$${escapeLatex(r.readSymbol)}$' & '$${escapeLatex(r.command)}$' & $${escapeLatex(r.toState)}$ \\\\ \\hline\n`;
     }
     latex += `\\end{tabular}\n\\caption{Таблица переходов в 4-кортежах}\n\\end{table}\n`;
   }

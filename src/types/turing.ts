@@ -90,7 +90,7 @@ export interface SubMachine {
   description?: string;
   nodes: TuringNode[];
   edges: TuringEdge[];
-  rules4: FourTupleRule[];
+  rules4?: FourTupleRule[];
 }
 
 export interface TestCase {
@@ -100,6 +100,7 @@ export interface TestCase {
   initialHeadPos?: number;
   expectedTape?: string;
   expectedHeadPos?: number;
+  expectedHalt?: 'accept' | 'reject' | 'any';
   lastActualTape?: string;
   lastActualHeadPos?: number;
   lastStepsCount?: number;
@@ -130,6 +131,23 @@ export interface ValidationIssue {
   message: string;
   nodeId?: string;
   edgeId?: string;
+}
+
+export interface RuntimeStats {
+  stepCount: number;
+  headPosition: number;
+  minTapeIndex: number;
+  maxTapeIndex: number;
+  tapeSpan: number;
+  nonBlankCellsCount: number;
+  currentNodeId: string;
+  currentNodeLabel: string;
+  currentNodeType?: string;
+  status: 'idle' | 'running' | 'paused' | 'halted' | 'error';
+  statusMessage?: string;
+  visitedPositionsCount: number;
+  callStackDepth: number;
+  currentSymbol: string;
 }
 
 export interface ProjectSession {

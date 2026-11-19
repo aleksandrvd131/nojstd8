@@ -163,7 +163,53 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
     }
   }
 
-  // 4. Isolated / Dangling Nodes Check
+  // 4. Isolated / BFS Reachability Check
+  const initialNodes = nodes.filter((n) =>
+    mode === '5-tuple' || subMode === 'state-graph'
+      ? (n.data as StateNodeData).stateType === 'initial'
+      : (n.data as OperationNodeData).opType === 'START'
+  );
+
+  const reachableNodeIds = new Set<string>();
+  if (initialNodes.length > 0) {
+    const queue: string[] = [];
+    for (const initNode of initialNodes) {
+      reachableNodeIds.add(initNode.id);
+      queue.push(initNode.id);
+    }
+
+    // Build adjacency list from edges and rules
+    const adj = new Map<string, Set<string>>();
+    for (const edge of edges) {
+      if (!adj.has(edge.source)) adj.set(edge.source, new Set());
+      adj.get(edge.source)!.add(edge.target);
+    }
+    if (mode === '5-tuple') {
+      for (const r of rules5) {
+        if (!adj.has(r.fromState)) adj.set(r.fromState, new Set());
+        adj.get(r.fromState)!.add(r.toState);
+      }
+    } else if (mode === '4-tuple' && subMode === 'state-graph') {
+      for (const r of rules4) {
+        if (!adj.has(r.fromState)) adj.set(r.fromState, new Set());
+        adj.get(r.fromState)!.add(r.toState);
+      }
+    }
+
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      const neighbors = adj.get(curr);
+      if (neighbors) {
+        for (const nextId of neighbors) {
+          if (!reachableNodeIds.has(nextId)) {
+            reachableNodeIds.add(nextId);
+            queue.push(nextId);
+          }
+        }
+      }
+    }
+  }
+
   for (const node of nodes) {
     const isInitial =
       mode === '5-tuple' || subMode === 'state-graph'
@@ -180,11 +226,11 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
         message: `Узел '${node.data.label || node.id}' полностью изолирован (нет входящих и исходящих связей).`,
         nodeId: node.id,
       });
-    } else if (!incoming && !isInitial) {
+    } else if (!isInitial && initialNodes.length > 0 && !reachableNodeIds.has(node.id)) {
       issues.push({
         id: `unreachable_${node.id}`,
         severity: 'info',
-        message: `Узел '${node.data.label || node.id}' недостижим из начального состояния (нет входящих стрелок).`,
+        message: `Узел '${node.data.label || node.id}' недостижим из начального состояния.`,
         nodeId: node.id,
       });
     }
@@ -211,6 +257,86 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
             nodeId: node.id,
           });
         }
+      }
+    }
+  }
+
+  // 6. Completeness Check (missing transitions for alphabet symbols)
+  const allSymbols = [...alphabet.symbols, alphabet.blankSymbol];
+  if (mode === '5-tuple' || (mode === '4-tuple' && subMode === 'state-graph')) {
+    for (const node of nodes) {
+      const stateData = node.data as StateNodeData;
+      if (
+        stateData.stateType === 'halt' ||
+        stateData.stateType === 'accept' ||
+        stateData.stateType === 'reject'
+      ) {
+        continue;
+      }
+
+      const coveredSymbols = new Set<string>();
+      if (mode === '5-tuple') {
+        for (const r of rules5) {
+          if (r.fromState === node.id) {
+            coveredSymbols.add(r.readSymbol);
+          }
+        }
+      } else {
+        for (const r of rules4) {
+          if (r.fromState === node.id) {
+            coveredSymbols.add(r.readSymbol);
+          }
+        }
+      }
+
+      const missing = allSymbols.filter((s) => !coveredSymbols.has(s));
+      if (missing.length > 0) {
+        issues.push({
+          id: `incomplete_${node.id}`,
+          severity: 'warning',
+          message: `Состояние '${stateData.label || node.id}' не содержит правил для символов: ${missing.join(', ')}.`,
+          nodeId: node.id,
+        });
+      }
+    }
+  } else {
+    // Operational diagram completeness
+    for (const node of nodes) {
+      const opData = node.data as OperationNodeData;
+      if (
+        opData.opType === 'FINISH' ||
+        opData.opType === 'SEARCH_L' ||
+        opData.opType === 'SEARCH_R'
+      ) {
+        continue;
+      }
+      const outgoing = edges.filter((e) => e.source === node.id);
+      const hasWildcard = outgoing.some((e) =>
+        e.data?.rules?.some((r) => r.isWildcard || r.readSymbol === '*')
+      );
+      if (hasWildcard) continue;
+
+      const coveredSymbols = new Set<string>();
+      for (const e of outgoing) {
+        for (const r of e.data?.rules || []) {
+          if (r.isComplement) {
+            for (const s of allSymbols) {
+              if (s !== r.readSymbol) coveredSymbols.add(s);
+            }
+          } else {
+            coveredSymbols.add(r.readSymbol);
+          }
+        }
+      }
+
+      const missing = allSymbols.filter((s) => !coveredSymbols.has(s));
+      if (missing.length > 0) {
+        issues.push({
+          id: `incomplete_op_${node.id}`,
+          severity: 'warning',
+          message: `Узел '${opData.label || node.id}' не имеет переходов для символов: ${missing.join(', ')}.`,
+          nodeId: node.id,
+        });
       }
     }
   }

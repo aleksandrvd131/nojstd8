@@ -7,11 +7,10 @@ import {
   Share2,
   Sun,
   Moon,
-  ChevronDown,
   Info,
   Check,
+  Edit2,
 } from 'lucide-react';
-import { TuringMode, FourTupleSubMode } from '../../types/turing';
 
 export const HeaderNavbar: React.FC = () => {
   const getActiveProject = useTuringStore((s) => s.getActiveProject);
@@ -46,34 +45,34 @@ export const HeaderNavbar: React.FC = () => {
   };
 
   return (
-    <header className="h-14 px-4 bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4 backdrop-blur-md select-none z-20">
-      {/* Brand & Project Name */}
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="h-12 px-3 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 select-none z-20 text-xs">
+      {/* Left: Brand & Project Name */}
+      <div className="flex items-center gap-2.5 min-w-0">
         <div className="flex items-center gap-2">
-          <div className="p-2 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-500/20">
-            <Cpu className="w-5 h-5" />
+          <div className="p-1.5 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
+            <Cpu className="w-4 h-4" />
           </div>
-          <div className="hidden sm:block">
-            <h1 className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <span>TuringIDE</span>
-              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400">
-                Next-Gen
-              </span>
-            </h1>
+          <div className="flex items-center gap-1.5 hidden sm:flex">
+            <span className="font-bold tracking-tight text-zinc-900 dark:text-zinc-100 text-xs font-mono uppercase">
+              Turing<span className="text-sky-500">IDE</span>
+            </span>
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+              v1.0
+            </span>
           </div>
         </div>
 
-        <div className="w-[1px] h-6 bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block" />
+        <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block" />
 
-        {/* Project Name & Condition description */}
-        <div className="flex items-center gap-2 min-w-0">
+        {/* Project Name & Description */}
+        <div className="flex items-center gap-1.5 min-w-0">
           {isEditingTitle ? (
             <div className="flex items-center gap-1">
               <input
                 type="text"
                 value={titleInput}
                 onChange={(e) => setTitleInput(e.target.value)}
-                className="px-2 py-1 text-xs font-bold rounded-lg bg-slate-100 dark:bg-slate-800 border border-sky-500 text-slate-900 dark:text-slate-100"
+                className="px-2 py-0.5 text-xs font-semibold rounded bg-zinc-100 dark:bg-zinc-800 border border-sky-500 text-zinc-900 dark:text-zinc-100 focus:outline-none"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleTitleSubmit();
@@ -83,26 +82,29 @@ export const HeaderNavbar: React.FC = () => {
               <button
                 type="button"
                 onClick={handleTitleSubmit}
-                className="p-1 rounded bg-sky-600 text-white"
+                className="p-1 rounded bg-sky-600 hover:bg-sky-500 text-white"
               >
-                <Check className="w-3.5 h-3.5" />
+                <Check className="w-3 h-3" />
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setTitleInput(project.name);
-                setIsEditingTitle(true);
-              }}
-              className="text-xs font-bold text-slate-800 dark:text-slate-200 hover:text-sky-600 truncate text-left max-w-[200px] md:max-w-[280px]"
-              title="Нажмите для переименования проекта"
-            >
-              {project.name}
-            </button>
+            <div className="flex items-center gap-1 group">
+              <button
+                type="button"
+                onClick={() => {
+                  setTitleInput(project.name);
+                  setIsEditingTitle(true);
+                }}
+                className="font-medium text-zinc-800 dark:text-zinc-200 hover:text-sky-600 dark:hover:text-sky-400 truncate text-left max-w-[180px] md:max-w-[260px] transition-colors"
+                title="Нажмите для переименования"
+              >
+                {project.name}
+              </button>
+              <Edit2 className="w-2.5 h-2.5 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
           )}
 
-          {/* Condition / Description popup button */}
+          {/* Condition / Description popover button */}
           <div className="relative">
             <button
               type="button"
@@ -110,36 +112,36 @@ export const HeaderNavbar: React.FC = () => {
                 setDescInput(project.description);
                 setIsDescriptionOpen(!isDescriptionOpen);
               }}
-              className="p-1 rounded-md text-slate-400 hover:text-sky-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              title="Условие задачи и комментарии к состояниям"
+              className="p-1 rounded text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              title="Условие задачи и примечания"
             >
               <Info className="w-3.5 h-3.5" />
             </button>
 
             {isDescriptionOpen && (
-              <div className="absolute top-8 left-0 w-80 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 animate-in fade-in zoom-in-95">
-                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-2">
-                  Условие задачи и комментарии
+              <div className="absolute top-8 left-0 w-80 p-3.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl z-50 animate-in fade-in zoom-in-95">
+                <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+                  Условие задачи и заметки
                 </h4>
                 <textarea
                   value={descInput}
                   onChange={(e) => setDescInput(e.target.value)}
                   placeholder="Запишите сюда текст лабораторной работы, формулировку алгоритма или заметки..."
                   rows={4}
-                  className="w-full p-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 resize-none focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full p-2 text-xs rounded bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 resize-none focus:outline-none focus:border-sky-500 font-sans"
                 />
-                <div className="flex justify-end gap-2 mt-2">
+                <div className="flex justify-end gap-1.5 mt-2">
                   <button
                     type="button"
                     onClick={() => setIsDescriptionOpen(false)}
-                    className="px-3 py-1 text-xs text-slate-500 hover:text-slate-700"
+                    className="px-2.5 py-1 text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
                   >
                     Отмена
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveDescription}
-                    className="px-3 py-1 text-xs font-semibold bg-sky-600 text-white rounded-lg"
+                    className="px-3 py-1 text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white rounded transition-colors shadow-sm"
                   >
                     Сохранить
                   </button>
@@ -150,19 +152,19 @@ export const HeaderNavbar: React.FC = () => {
         </div>
       </div>
 
-      {/* Center: Mode Switcher */}
-      <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold">
+      {/* Center: Minimalist Mode Switcher */}
+      <div className="flex items-center bg-zinc-100 dark:bg-zinc-800/90 p-0.5 rounded border border-zinc-200 dark:border-zinc-700/80 font-mono text-[11px]">
         <button
           type="button"
           onClick={() => setMode('5-tuple')}
-          className={`px-3 py-1.5 rounded-lg transition-all ${
+          className={`px-2.5 py-1 rounded transition-colors ${
             project.mode === '5-tuple'
-              ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm'
-              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-xs border border-zinc-200 dark:border-zinc-700'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
-          title="Классический режим в пятёрках: одновременная запись и сдвиг головки"
+          title="Классический режим 5-tuples: (q, a, a', d, q')"
         >
-          Пятёрки (5-tuple)
+          5-Tuple
         </button>
 
         <button
@@ -171,14 +173,14 @@ export const HeaderNavbar: React.FC = () => {
             setMode('4-tuple');
             setSubMode('state-graph');
           }}
-          className={`px-3 py-1.5 rounded-lg transition-all ${
+          className={`px-2.5 py-1 rounded transition-colors ${
             project.mode === '4-tuple' && project.subMode === 'state-graph'
-              ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm'
-              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-xs border border-zinc-200 dark:border-zinc-700'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
-          title="Режим в четвёрках: граф состояний с разделением сдвига и записи"
+          title="Режим 4-tuples: Граф состояний с раздельным сдвигом/записью"
         >
-          Четвёрки (Граф)
+          4-Tuple (Граф)
         </button>
 
         <button
@@ -187,31 +189,31 @@ export const HeaderNavbar: React.FC = () => {
             setMode('4-tuple');
             setSubMode('operational');
           }}
-          className={`px-3 py-1.5 rounded-lg transition-all ${
+          className={`px-2.5 py-1 rounded transition-colors ${
             project.mode === '4-tuple' && project.subMode === 'operational'
-              ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm'
-              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-xs border border-zinc-200 dark:border-zinc-700'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
-          title="Режим в четвёрках: Операционная диаграмма VTM с примитивными блоками"
+          title="Режим 4-tuples: Операционная блок-схема VTM"
         >
-          Четвёрки (VTM)
+          4-Tuple (VTM)
         </button>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {/* Alphabet Trigger */}
         <button
           type="button"
           onClick={() => setAlphabetModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors"
-          title="Настройка алфавита"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs transition-colors"
+          title="Настройка алфавита машины"
         >
-          <BookOpen className="w-3.5 h-3.5 text-sky-500" />
-          <span className="hidden md:inline">Алфавит:</span>
-          <span className="font-mono text-sky-600 dark:text-sky-400">
+          <BookOpen className="w-3.5 h-3.5 text-zinc-500" />
+          <span className="hidden md:inline font-sans">A:</span>
+          <span className="font-mono text-zinc-900 dark:text-zinc-100 font-semibold">
             {`{${project.alphabet.symbols.slice(0, 3).join(',')}${
-              project.alphabet.symbols.length > 3 ? '...' : ''
+              project.alphabet.symbols.length > 3 ? '…' : ''
             },${project.alphabet.blankSymbol}}`}
           </span>
         </button>
@@ -220,12 +222,12 @@ export const HeaderNavbar: React.FC = () => {
         <button
           type="button"
           onClick={() => setSessionDrawerOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors"
-          title="Список проектов и лабораторных работ"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs transition-colors"
+          title="Список проектов и демонстраций"
         >
-          <FolderOpen className="w-3.5 h-3.5 text-sky-500" />
-          <span className="hidden lg:inline">Проекты</span>
-          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+          <FolderOpen className="w-3.5 h-3.5 text-zinc-500" />
+          <span className="hidden lg:inline font-sans">Проекты</span>
+          <span className="text-[10px] px-1 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-mono">
             {projects.length}
           </span>
         </button>
@@ -234,8 +236,8 @@ export const HeaderNavbar: React.FC = () => {
         <button
           type="button"
           onClick={() => setExportModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-sm transition-colors"
-          title="Экспорт проекта (LaTeX, JSON, PlantUML, PNG)"
+          className="flex items-center gap-1.5 px-3 py-1 rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 text-xs font-semibold shadow-xs transition-colors"
+          title="Экспорт проекта (LaTeX, JSON, PlantUML, Markdown, PNG)"
         >
           <Share2 className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Экспорт</span>
@@ -245,10 +247,10 @@ export const HeaderNavbar: React.FC = () => {
         <button
           type="button"
           onClick={toggleTheme}
-          className="p-2 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="p-1.5 rounded text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           title={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
         >
-          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+          {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-zinc-600" />}
         </button>
       </div>
     </header>

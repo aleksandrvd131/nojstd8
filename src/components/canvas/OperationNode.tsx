@@ -9,8 +9,8 @@ import {
   ChevronsRight,
   PenTool,
   Boxes,
-  PlayCircle,
-  StopCircle,
+  Play,
+  Square,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -26,66 +26,66 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
     switch (nodeData.opType) {
       case 'START':
         return {
-          icon: <PlayCircle className="w-4 h-4 text-emerald-500" />,
+          icon: <Play className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 fill-current" />,
           label: 'START',
           code: '.',
-          color: 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+          color: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
         };
       case 'FINISH':
         return {
-          icon: <StopCircle className="w-4 h-4 text-rose-500" />,
+          icon: <Square className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 fill-current" />,
           label: 'FINISH',
           code: 'HALT',
-          color: 'border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400',
+          color: 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400',
         };
       case 'SHIFT_L':
         return {
-          icon: <ArrowLeft className="w-4 h-4 text-sky-500" />,
+          icon: <ArrowLeft className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />,
           label: 'Сдвиг L',
           code: 'l',
-          color: 'border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-400',
+          color: 'border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400',
         };
       case 'SHIFT_R':
         return {
-          icon: <ArrowRight className="w-4 h-4 text-sky-500" />,
+          icon: <ArrowRight className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />,
           label: 'Сдвиг R',
           code: 'r',
-          color: 'border-sky-500 bg-sky-500/10 text-sky-600 dark:text-sky-400',
+          color: 'border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400',
         };
       case 'SEARCH_L':
         return {
-          icon: <ChevronsLeft className="w-4 h-4 text-indigo-500" />,
-          label: 'Поиск влево',
+          icon: <ChevronsLeft className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />,
+          label: 'Поиск L',
           code: 'L',
-          color: 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+          color: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
         };
       case 'SEARCH_R':
         return {
-          icon: <ChevronsRight className="w-4 h-4 text-indigo-500" />,
-          label: 'Поиск вправо',
+          icon: <ChevronsRight className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />,
+          label: 'Поиск R',
           code: 'R',
-          color: 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+          color: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
         };
       case 'WRITE_SYM':
         return {
-          icon: <PenTool className="w-4 h-4 text-violet-500" />,
+          icon: <PenTool className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />,
           label: `Запись [${nodeData.symbolToWrite ?? 'λ'}]`,
           code: `[${nodeData.symbolToWrite ?? 'λ'}]`,
-          color: 'border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400',
+          color: 'border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-400',
         };
       case 'COMPLEX_MACHINE':
         return {
-          icon: <Boxes className="w-4 h-4 text-amber-500" />,
+          icon: <Boxes className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />,
           label: nodeData.subMachineName || 'Подмашина',
           code: 'K',
-          color: 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+          color: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
         };
       default:
         return {
           icon: null,
           label: nodeData.label,
           code: '?',
-          color: 'border-slate-500 bg-slate-500/10 text-slate-600 dark:text-slate-400',
+          color: 'border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400',
         };
     }
   };
@@ -95,51 +95,51 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
   return (
     <div
       className={clsx(
-        'relative group min-w-[130px] rounded-xl px-3.5 py-2.5 transition-all duration-200 border-2 select-none shadow-md backdrop-blur-md',
+        'relative group min-w-[120px] rounded-md px-3 py-2 select-none transition-colors border',
         isCurrent
-          ? 'bg-amber-500/20 border-amber-400 ring-4 ring-amber-400/30 scale-105'
+          ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 dark:border-amber-400 shadow-xs ring-1 ring-amber-500/40'
           : selected
-          ? 'bg-sky-500/15 border-sky-400 ring-2 ring-sky-400/40'
-          : 'bg-white/95 dark:bg-slate-900/95 border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500',
-        isFinish && 'ring-2 ring-offset-2 ring-offset-slate-900 ring-rose-500/50'
+          ? 'bg-sky-50/50 dark:bg-sky-950/30 border-sky-500 ring-1 ring-sky-500/30'
+          : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 shadow-xs',
+        isFinish && 'outline outline-1 outline-offset-2 outline-rose-500/50'
       )}
     >
-      {/* Handles */}
+      {/* Precision Port Handles */}
       <Handle
         type="target"
         position={Position.Top}
         id="top"
-        className="!w-3 !h-3 !bg-slate-400 dark:!bg-slate-500 !border-2 !border-white dark:!border-slate-900 !rounded-full"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        className="!w-3 !h-3 !bg-sky-500 !border-2 !border-white dark:!border-slate-900 !rounded-full"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        className="!w-3 !h-3 !bg-sky-500 !border-2 !border-white dark:!border-slate-900 !rounded-full"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="target"
         position={Position.Left}
         id="left"
-        className="!w-3 !h-3 !bg-slate-400 dark:!bg-slate-500 !border-2 !border-white dark:!border-slate-900 !rounded-full"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
       />
 
       <div className="flex items-center gap-2">
         <div className="flex-shrink-0">{badge.icon}</div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1">
-            <span className="font-mono text-xs font-bold truncate text-slate-800 dark:text-slate-100">
+            <span className="font-mono text-xs font-bold truncate text-zinc-900 dark:text-zinc-100">
               {nodeData.label || badge.label}
             </span>
             <span
               className={clsx(
-                'font-mono text-[11px] font-extrabold px-1.5 py-0.2 rounded border',
+                'font-mono text-[10px] font-bold px-1 py-0.2 rounded border',
                 badge.color
               )}
             >
@@ -147,16 +147,16 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
             </span>
           </div>
 
-          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
             {badge.label}
           </div>
         </div>
       </div>
 
+      {/* Discrete active execution badge */}
       {isCurrent && (
-        <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-amber-500"></span>
+        <span className="absolute -top-2 right-2 px-1 py-0.2 rounded bg-amber-500 text-white font-mono text-[8px] font-bold tracking-wider shadow-xs">
+          ACT
         </span>
       )}
     </div>

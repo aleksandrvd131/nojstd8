@@ -23,11 +23,11 @@ export const DiagnosticsPanel: React.FC = () => {
   return (
     <div className="flex flex-col h-full overflow-hidden text-xs">
       {/* Header status */}
-      <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+      <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-sky-500" />
-            <h3 className="font-bold text-slate-900 dark:text-slate-100">
+            <h3 className="font-bold text-zinc-900 dark:text-zinc-100">
               Статический Анализатор (Check)
             </h3>
           </div>
@@ -45,19 +45,19 @@ export const DiagnosticsPanel: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-500">
+        <div className="flex items-center gap-4 mt-3 text-[11px] text-zinc-500">
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-rose-500" />
-            Ошибки: <strong className="text-slate-800 dark:text-slate-200">{errors.length}</strong>
+            Ошибки: <strong className="text-zinc-800 dark:text-zinc-200">{errors.length}</strong>
           </span>
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
             Предупреждения:{' '}
-            <strong className="text-slate-800 dark:text-slate-200">{warnings.length}</strong>
+            <strong className="text-zinc-800 dark:text-zinc-200">{warnings.length}</strong>
           </span>
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-sky-500" />
-            Инфо: <strong className="text-slate-800 dark:text-slate-200">{infos.length}</strong>
+            Инфо: <strong className="text-zinc-800 dark:text-zinc-200">{infos.length}</strong>
           </span>
         </div>
       </div>
@@ -65,12 +65,12 @@ export const DiagnosticsPanel: React.FC = () => {
       {/* Issues list */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {issues.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-center text-slate-400">
+          <div className="flex flex-col items-center justify-center h-48 text-center text-zinc-400">
             <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2 opacity-80" />
-            <p className="font-semibold text-slate-700 dark:text-slate-300">
+            <p className="font-semibold text-zinc-700 dark:text-zinc-300">
               Инварианты диаграммы соблюдены
             </p>
-            <p className="text-[11px] text-slate-400 mt-1 max-w-xs">
+            <p className="text-[11px] text-zinc-400 mt-1 max-w-xs">
               Задана точка входа, есть состояние останова, нет конфликтующих недетерминированных правил.
             </p>
           </div>
@@ -112,7 +112,7 @@ export const DiagnosticsPanel: React.FC = () => {
                     </p>
 
                     {issue.nodeId && (
-                      <p className="text-[11px] text-slate-500 mt-1">
+                      <p className="text-[11px] text-zinc-500 mt-1">
                         Узел: <span className="font-mono font-bold text-sky-600">{issue.nodeId}</span>{' '}
                         (нажмите для перехода)
                       </p>

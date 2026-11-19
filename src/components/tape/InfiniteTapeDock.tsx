@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTuringStore } from '../../store/useTuringStore';
 import {
   RotateCcw,
@@ -6,7 +6,7 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
+  Crosshair,
 } from 'lucide-react';
 
 export const InfiniteTapeDock: React.FC = () => {
@@ -50,78 +50,80 @@ export const InfiniteTapeDock: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-xl select-none">
-      {/* Tape Header Bar */}
-      <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 text-xs">
+    <div className="flex flex-col w-full bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 select-none text-xs">
+      {/* Tape Sub-toolbar */}
+      <div className="px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 bg-zinc-50/60 dark:bg-zinc-950/60">
         {/* Quick word input */}
-        <form onSubmit={handleApplyInputWord} className="flex items-center gap-2 flex-1 max-w-md">
+        <form onSubmit={handleApplyInputWord} className="flex items-center gap-1.5 flex-1 max-w-sm">
           <input
             type="text"
-            placeholder="Ввести входное слово (например, 10110)..."
+            placeholder="Входное слово на ленту (напр. 10110)..."
             value={inputWord}
             onChange={(e) => setInputWord(e.target.value)}
-            className="flex-1 px-3 py-1.5 text-xs font-mono rounded-lg bg-slate-100 dark:bg-slate-800 border-none text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-sky-500"
+            className="flex-1 px-2.5 py-1 text-xs font-mono rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-sky-500"
           />
           <button
             type="submit"
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white shadow-sm transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded bg-zinc-800 dark:bg-zinc-200 hover:bg-zinc-700 dark:hover:bg-white text-white dark:text-zinc-900 transition-colors"
           >
             <span>Загрузить</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3 h-3" />
           </button>
         </form>
 
         {/* Head position & Buffer controls */}
-        <div className="flex items-center gap-2">
-          <div className="text-[11px] text-slate-500 font-mono">
-            Позиция головки: <strong className="text-sky-600 dark:text-sky-400">{head}</strong>
+        <div className="flex items-center gap-2 font-mono text-[11px]">
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300">
+            <Crosshair className="w-3 h-3 text-amber-500" />
+            <span>HEAD:</span>
+            <strong className="text-zinc-900 dark:text-zinc-100 font-bold">{head}</strong>
           </div>
 
-          <div className="w-[1px] h-4 bg-slate-200 dark:border-slate-800 mx-1" />
+          <div className="w-[1px] h-3.5 bg-zinc-200 dark:bg-zinc-800" />
 
           <button
             type="button"
             onClick={saveTapeToInitialBuffer}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
-            title="Зафиксировать текущую ленту как начальное состояние"
+            className="flex items-center gap-1 px-2 py-1 rounded bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 transition-colors"
+            title="Зафиксировать текущую ленту как начальное состояние (Save Buffer)"
           >
-            <Save className="w-3.5 h-3.5 text-sky-500" />
-            <span className="hidden sm:inline">В буфер</span>
+            <Save className="w-3 h-3 text-zinc-500" />
+            <span className="hidden sm:inline font-sans">В буфер</span>
           </button>
 
           <button
             type="button"
             onClick={resetTapeFromInitialBuffer}
-            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
-            title="Восстановить ленту из буфера"
+            className="flex items-center gap-1 px-2 py-1 rounded bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 transition-colors"
+            title="Восстановить ленту из буфера (Reset Tape)"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
-            <span className="hidden sm:inline">Сброс</span>
+            <RotateCcw className="w-3 h-3 text-zinc-500" />
+            <span className="hidden sm:inline font-sans">Сброс ленты</span>
           </button>
 
-          <div className="flex items-center gap-1 ml-1">
+          <div className="flex items-center ml-1 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
             <button
               type="button"
               onClick={() => setRangeOffset((r) => r - 5)}
-              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
-              title="Прокрутить ленту влево"
+              className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-l transition-colors"
+              title="Прокрутить ленту влево (−5 ячеек)"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
               onClick={() => setRangeOffset((r) => r + 5)}
-              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
-              title="Прокрутить ленту вправо"
+              className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-r transition-colors"
+              title="Прокрутить ленту вправо (+5 ячеек)"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Infinite Tape Cells Strip */}
-      <div className="relative py-4 px-6 overflow-x-auto flex items-center justify-center gap-1.5 bg-slate-50/70 dark:bg-slate-950/70">
+      {/* CAD Precision Tape Strip */}
+      <div className="py-2.5 px-4 overflow-x-auto flex items-center justify-center gap-1 bg-zinc-100/60 dark:bg-zinc-950">
         {visibleCells.map((pos) => {
           const isHead = pos === head;
           const isVisited = runtime.visitedPositions.includes(pos);
@@ -130,11 +132,11 @@ export const InfiniteTapeDock: React.FC = () => {
           const isEditing = editingPos === pos;
 
           return (
-            <div key={pos} className="flex flex-col items-center">
-              {/* Pointer indicator over head */}
-              <div className="h-4 flex items-center justify-center">
+            <div key={pos} className="flex flex-col items-center group">
+              {/* Head pointer notch (sharp CAD indicator, no bounce) */}
+              <div className="h-2 flex items-center justify-center">
                 {isHead && (
-                  <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-amber-500 animate-bounce" />
+                  <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[5px] border-t-amber-500" />
                 )}
               </div>
 
@@ -144,14 +146,14 @@ export const InfiniteTapeDock: React.FC = () => {
                   setEditingPos(pos);
                   setHeadPosition(pos);
                 }}
-                className={`relative w-12 h-14 rounded-xl flex items-center justify-center font-mono font-bold text-lg cursor-pointer transition-all border-2 ${
+                className={`relative w-9 h-11 rounded-sm flex items-center justify-center font-mono text-sm cursor-pointer transition-colors border select-none ${
                   isHead
-                    ? 'bg-amber-500/20 border-amber-500 text-amber-600 dark:text-amber-300 ring-4 ring-amber-500/20 shadow-md scale-105 z-10'
+                    ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 text-amber-700 dark:text-amber-300 font-extrabold shadow-xs'
                     : isVisited
-                    ? 'bg-sky-50 dark:bg-sky-950/30 border-sky-300 dark:border-sky-800 text-slate-800 dark:text-slate-100 hover:border-sky-400'
-                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                    ? 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 font-bold hover:border-zinc-400 dark:hover:border-zinc-500'
+                    : 'bg-zinc-50/50 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-700'
                 }`}
-                title={`Ячейка [${pos}]. Кликните для редактирования или перемещения головки.`}
+                title={`Ячейка [${pos}]. Кликните для выбора символа или перемещения головки.`}
               >
                 {isEditing ? (
                   <select
@@ -162,16 +164,16 @@ export const InfiniteTapeDock: React.FC = () => {
                     }}
                     onBlur={() => setEditingPos(null)}
                     autoFocus
-                    className="w-full h-full bg-transparent text-center font-mono font-bold text-base focus:outline-none"
+                    className="w-full h-full bg-transparent text-center font-mono font-bold text-sm focus:outline-none cursor-pointer"
                   >
                     {allSymbols.map((s) => (
-                      <option key={s} value={s}>
+                      <option key={s} value={s} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
                         {s}
                       </option>
                     ))}
                   </select>
                 ) : (
-                  <span className={isBlank ? 'text-slate-400 dark:text-slate-600 font-light' : ''}>
+                  <span className={isBlank ? 'text-zinc-400 dark:text-zinc-600 font-light' : 'font-bold'}>
                     {cellValue}
                   </span>
                 )}
@@ -179,10 +181,10 @@ export const InfiniteTapeDock: React.FC = () => {
 
               {/* Cell coordinate number */}
               <span
-                className={`mt-1 font-mono text-[10px] ${
+                className={`mt-1 font-mono text-[9px] ${
                   isHead
                     ? 'font-bold text-amber-600 dark:text-amber-400'
-                    : 'text-slate-400 dark:text-slate-600'
+                    : 'text-zinc-400 dark:text-zinc-500'
                 }`}
               >
                 {pos}

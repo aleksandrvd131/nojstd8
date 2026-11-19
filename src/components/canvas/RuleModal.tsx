@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useTuringStore } from '../../store/useTuringStore';
+import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import { MoveDirection } from '../../types/turing';
 import { X, Trash2, Check } from 'lucide-react';
 
@@ -7,7 +7,6 @@ export const RuleModal: React.FC = () => {
   const isRuleModalOpen = useTuringStore((s) => s.isRuleModalOpen);
   const ruleModalData = useTuringStore((s) => s.ruleModalData);
   const closeRuleModal = useTuringStore((s) => s.closeRuleModal);
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
 
   const addFiveTupleRule = useTuringStore((s) => s.addFiveTupleRule);
   const updateFiveTupleRule = useTuringStore((s) => s.updateFiveTupleRule);
@@ -16,8 +15,9 @@ export const RuleModal: React.FC = () => {
   const addFourTupleRule = useTuringStore((s) => s.addFourTupleRule);
   const updateFourTupleRule = useTuringStore((s) => s.updateFourTupleRule);
   const deleteFourTupleRule = useTuringStore((s) => s.deleteFourTupleRule);
+  const deleteEdgeRule = useTuringStore((s) => s.deleteEdgeRule);
 
-  const project = getActiveProject();
+  const project = useActiveProject();
   const { mode, subMode, alphabet } = project;
   const allSymbols = [...alphabet.symbols, alphabet.blankSymbol];
 
@@ -177,6 +177,12 @@ export const RuleModal: React.FC = () => {
     if (!ruleModalData.ruleId) return;
     if (mode === '5-tuple') {
       deleteFiveTupleRule(ruleModalData.ruleId);
+    } else if (subMode === 'operational') {
+      if (ruleModalData.edgeId) {
+        deleteEdgeRule(ruleModalData.edgeId, ruleModalData.ruleId);
+      } else {
+        deleteFourTupleRule(ruleModalData.ruleId);
+      }
     } else {
       deleteFourTupleRule(ruleModalData.ruleId);
     }
@@ -184,24 +190,23 @@ export const RuleModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 text-xs">
+      <div className="w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl p-5">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
               {ruleModalData.ruleId ? 'Редактирование правила' : 'Новый переход'}
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Связь: <span className="font-mono font-semibold text-sky-500">{sourceLabel}</span> →{' '}
-              <span className="font-mono font-semibold text-sky-500">{targetLabel}</span>
+            <p className="text-[11px] text-zinc-500 mt-0.5 font-mono">
+              <span>{sourceLabel}</span> → <span>{targetLabel}</span>
             </p>
           </div>
           <button
             onClick={closeRuleModal}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -209,7 +214,7 @@ export const RuleModal: React.FC = () => {
         <div className="mt-4 space-y-4">
           {/* Read symbol */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5">
               Считанный символ (Read Symbol)
             </label>
             {subMode === 'operational' ? (
@@ -220,9 +225,9 @@ export const RuleModal: React.FC = () => {
                     id="wildcard"
                     checked={isWildcard}
                     onChange={(e) => setIsWildcard(e.target.checked)}
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
+                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800"
                   />
-                  <label htmlFor="wildcard" className="text-sm text-slate-700 dark:text-slate-300">
+                  <label htmlFor="wildcard" className="text-sm text-zinc-700 dark:text-zinc-300">
                     Любой символ ленты (<span className="font-mono font-bold">*</span>)
                   </label>
                 </div>
@@ -230,7 +235,7 @@ export const RuleModal: React.FC = () => {
                   <select
                     value={readSymbol}
                     onChange={(e) => setReadSymbol(e.target.value)}
-                    className="w-full px-3 py-2 text-sm font-mono rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="w-full px-3 py-2 text-sm font-mono rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     {allSymbols.map((sym) => (
                       <option key={sym} value={sym}>
@@ -244,7 +249,7 @@ export const RuleModal: React.FC = () => {
               <select
                 value={readSymbol}
                 onChange={(e) => setReadSymbol(e.target.value)}
-                className="w-full px-3 py-2 text-sm font-mono rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full px-3 py-2 text-sm font-mono rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
                 {allSymbols.map((sym) => (
                   <option key={sym} value={sym}>
@@ -259,13 +264,13 @@ export const RuleModal: React.FC = () => {
           {mode === '5-tuple' && (
             <>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5">
                   Записываемый символ (Write Symbol)
                 </label>
                 <select
                   value={writeSymbol}
                   onChange={(e) => setWriteSymbol(e.target.value)}
-                  className="w-full px-3 py-2 text-sm font-mono rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 text-sm font-mono rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
                   {allSymbols.map((sym) => (
                     <option key={sym} value={sym}>
@@ -276,7 +281,7 @@ export const RuleModal: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5">
                   Сдвиг головки (Move)
                 </label>
                 <div className="grid grid-cols-3 gap-2">
@@ -288,7 +293,7 @@ export const RuleModal: React.FC = () => {
                       className={`py-2 text-sm font-mono font-bold rounded-lg border transition-all ${
                         move === dir
                           ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-sky-300'
+                          : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:border-sky-300'
                       }`}
                     >
                       {dir === 'L' ? '← L (Влево)' : dir === 'R' ? '→ R (Вправо)' : '• N (Стоять)'}
@@ -302,18 +307,18 @@ export const RuleModal: React.FC = () => {
           {/* 4-Tuple specifics (State Graph) */}
           {mode === '4-tuple' && subMode === 'state-graph' && (
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5">
                 Команда (Command: Сдвиг или Запись)
               </label>
 
-              <div className="flex rounded-lg p-1 bg-slate-100 dark:bg-slate-800 mb-3">
+              <div className="flex rounded-lg p-1 bg-zinc-100 dark:bg-zinc-800 mb-3">
                 <button
                   type="button"
                   onClick={() => setFourCommandType('move')}
                   className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
                     fourCommandType === 'move'
-                      ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
+                      ? 'bg-white dark:bg-zinc-900 text-sky-600 dark:text-sky-400 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-700'
                   }`}
                 >
                   Сдвиг головки (L / R / N)
@@ -323,8 +328,8 @@ export const RuleModal: React.FC = () => {
                   onClick={() => setFourCommandType('write')}
                   className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
                     fourCommandType === 'write'
-                      ? 'bg-white dark:bg-slate-900 text-sky-600 dark:text-sky-400 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-700'
+                      ? 'bg-white dark:bg-zinc-900 text-sky-600 dark:text-sky-400 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-700'
                   }`}
                 >
                   Запись символа
@@ -341,7 +346,7 @@ export const RuleModal: React.FC = () => {
                       className={`py-2 text-sm font-mono font-bold rounded-lg border transition-all ${
                         fourMove === dir
                           ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
-                          : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-sky-300'
+                          : 'bg-zinc-50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:border-sky-300'
                       }`}
                     >
                       {dir === 'L' ? '← L' : dir === 'R' ? '→ R' : '• N'}
@@ -352,7 +357,7 @@ export const RuleModal: React.FC = () => {
                 <select
                   value={fourWriteSym}
                   onChange={(e) => setFourWriteSym(e.target.value)}
-                  className="w-full px-3 py-2 text-sm font-mono rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-3 py-2 text-sm font-mono rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
                   {allSymbols.map((sym) => (
                     <option key={sym} value={sym}>
@@ -366,7 +371,7 @@ export const RuleModal: React.FC = () => {
         </div>
 
         {/* Footer actions */}
-        <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800">
           {ruleModalData.ruleId ? (
             <button
               type="button"
@@ -384,7 +389,7 @@ export const RuleModal: React.FC = () => {
             <button
               type="button"
               onClick={closeRuleModal}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
             >
               Отмена
             </button>

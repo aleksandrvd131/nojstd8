@@ -6,7 +6,6 @@ import {
   exportToPlantUML,
   exportToMarkdown,
 } from '../../engine/exporter';
-import { toPng } from 'html-to-image';
 import {
   X,
   Copy,
@@ -16,16 +15,18 @@ import {
   FileText,
   Image as ImageIcon,
   Share2,
+  FileBox,
 } from 'lucide-react';
 
 export const ExportModal: React.FC = () => {
   const isExportModalOpen = useTuringStore((s) => s.isExportModalOpen);
   const setExportModalOpen = useTuringStore((s) => s.setExportModalOpen);
   const getActiveProject = useTuringStore((s) => s.getActiveProject);
+  const exportDiagramImage = useTuringStore((s) => s.exportDiagramImage);
 
   const project = getActiveProject();
 
-  const [activeTab, setActiveTab] = useState<'json' | 'latex' | 'plantuml' | 'markdown' | 'png'>('json');
+  const [activeTab, setActiveTab] = useState<'json' | 'latex' | 'plantuml' | 'markdown' | 'image'>('json');
   const [copied, setCopied] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
 
@@ -48,7 +49,7 @@ export const ExportModal: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownload = () => {
+  const handleDownloadText = () => {
     let filename = `${project.name.replace(/\s+/g, '_')}`;
     let mime = 'text/plain';
 
@@ -72,172 +73,173 @@ export const ExportModal: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportPNG = async () => {
-    const canvasElement = document.querySelector('.react-flow') as HTMLElement;
-    if (!canvasElement) {
-      alert('Не найден элемент холста для создания снимка.');
-      return;
-    }
-
+  const handleExportImage = async (format: 'png' | 'svg') => {
     try {
       setIsCapturing(true);
-      const dataUrl = await toPng(canvasElement, {
-        backgroundColor: '#0f172a',
-        quality: 0.95,
+      await exportDiagramImage({
+        format,
+        filename: `${project.name.replace(/\s+/g, '_')}_diagram`,
       });
-
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `${project.name.replace(/\s+/g, '_')}_diagram.png`;
-      a.click();
     } catch (err: any) {
-      alert('Ошибка при экспорте PNG: ' + err.message);
+      alert(`Ошибка при экспорте ${format.toUpperCase()}: ` + err.message);
     } finally {
       setIsCapturing(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 text-xs">
+      <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl flex flex-col max-h-[85vh]">
         {/* Modal Header */}
-        <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
-              <Share2 className="w-5 h-5" />
-            </div>
+            <Share2 className="w-4 h-4 text-zinc-500" />
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Экспорт проекта & Отчётов
+              <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">
+                Экспорт проекта и отчётов
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                JSON, LaTeX для лабораторных, PlantUML, Markdown и графический снимок PNG
+              <p className="text-[11px] text-zinc-500">
+                LaTeX для лабораторных, JSON, PlantUML, Markdown и векторный/растровый снимок
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={() => setExportModalOpen(false)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 px-5 gap-4 text-xs font-semibold">
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 px-4 gap-4 text-xs font-medium bg-zinc-50/50 dark:bg-zinc-950/50">
           <button
             type="button"
             onClick={() => setActiveTab('json')}
-            className={`py-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+            className={`py-2.5 border-b-2 flex items-center gap-1.5 transition-colors ${
               activeTab === 'json'
-                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <FileCode className="w-4 h-4" />
-            JSON Проект
+            <FileCode className="w-3.5 h-3.5" />
+            JSON
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('latex')}
-            className={`py-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+            className={`py-2.5 border-b-2 flex items-center gap-1.5 transition-colors ${
               activeTab === 'latex'
-                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <FileText className="w-4 h-4" />
-            LaTeX (Отчёт)
+            <FileText className="w-3.5 h-3.5" />
+            LaTeX
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('plantuml')}
-            className={`py-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+            className={`py-2.5 border-b-2 flex items-center gap-1.5 transition-colors ${
               activeTab === 'plantuml'
-                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <FileCode className="w-4 h-4" />
+            <FileCode className="w-3.5 h-3.5" />
             PlantUML
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('markdown')}
-            className={`py-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+            className={`py-2.5 border-b-2 flex items-center gap-1.5 transition-colors ${
               activeTab === 'markdown'
-                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="w-3.5 h-3.5" />
             Markdown
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('png')}
-            className={`py-3 border-b-2 flex items-center gap-1.5 transition-colors ${
-              activeTab === 'png'
-                ? 'border-sky-500 text-sky-600 dark:text-sky-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+            onClick={() => setActiveTab('image')}
+            className={`py-2.5 border-b-2 flex items-center gap-1.5 transition-colors ${
+              activeTab === 'image'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <ImageIcon className="w-4 h-4" />
-            Снимок PNG
+            <ImageIcon className="w-3.5 h-3.5" />
+            Снимок (PNG / SVG)
           </button>
         </div>
 
         {/* Tab Body */}
-        <div className="flex-1 overflow-hidden p-5 flex flex-col">
-          {activeTab === 'png' ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
-              <div className="p-4 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400">
-                <ImageIcon className="w-12 h-12" />
+        <div className="flex-1 overflow-hidden p-4 flex flex-col min-h-0">
+          {activeTab === 'image' ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center space-y-4">
+              <div className="p-3 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300">
+                <ImageIcon className="w-8 h-8" />
               </div>
-              <div>
-                <h4 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                  Экспорт холста в формате высокого разрешения (PNG)
+              <div className="max-w-md">
+                <h4 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">
+                  Графический экспорт диаграммы
                 </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1">
-                  Формирует чёткий векторно-растровый снимок графа состояний или операционной диаграммы для вставки в презентацию или отчёт.
+                <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-1">
+                  Снимок графа состояний или операционной блок-схемы без управляющих панелей, подходящий для отчётов и презентаций.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleExportPNG}
-                disabled={isCapturing}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold shadow-md transition-all disabled:opacity-50"
-              >
-                <Download className="w-4 h-4" />
-                <span>{isCapturing ? 'Генерация изображения...' : 'Скачать изображение PNG'}</span>
-              </button>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleExportImage('png')}
+                  disabled={isCapturing}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 font-semibold shadow-xs disabled:opacity-40 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{isCapturing ? 'Экспорт...' : 'Скачать PNG'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExportImage('svg')}
+                  disabled={isCapturing}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-700 font-semibold disabled:opacity-40 transition-colors"
+                >
+                  <FileBox className="w-3.5 h-3.5" />
+                  <span>Векторный SVG</span>
+                </button>
+              </div>
             </div>
           ) : (
             <>
-              <div className="relative flex-1 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-mono text-xs">
+              <div className="relative flex-1 overflow-hidden rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 font-mono text-xs">
                 <textarea
                   readOnly
                   value={exportContent}
-                  className="w-full h-full p-4 bg-transparent resize-none focus:outline-none text-slate-800 dark:text-slate-200 leading-relaxed"
+                  className="w-full h-full p-3 bg-transparent resize-none focus:outline-none text-zinc-800 dark:text-zinc-200 leading-relaxed font-mono select-all"
                 />
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-end gap-2 mt-3 pt-2.5 border-t border-zinc-200 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 font-medium rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 transition-colors"
                 >
-                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copied ? 'Скопировано!' : 'Копировать'}</span>
                 </button>
                 <button
                   type="button"
-                  onClick={handleDownload}
-                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-sky-600 hover:bg-sky-500 text-white shadow-sm transition-colors"
+                  onClick={handleDownloadText}
+                  className="flex items-center gap-1.5 px-3 py-1.5 font-semibold rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 shadow-xs transition-colors"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-3.5 h-3.5" />
                   <span>Скачать файл</span>
                 </button>
               </div>

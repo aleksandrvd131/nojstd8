@@ -53,65 +53,83 @@ export const DebuggerControls: React.FC = () => {
     };
   }, [isRunning, executionSpeedMs, runtime.status, stepForward, pauseRunning]);
 
+  const isHaltedOrError = runtime.status === 'halted' || runtime.status === 'error';
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-2.5 bg-slate-100/90 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 text-xs">
-      {/* Playback Controls */}
-      <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 text-xs">
+      {/* Playback Controls & Shortcuts */}
+      <div className="flex items-center gap-1.5">
+        {/* Reset Button */}
         <button
           type="button"
           onClick={resetExecution}
-          className="p-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm transition-all"
-          title="Сбросить в начальное состояние"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 transition-colors"
+          title="Сброс в начальное состояние [Esc]"
         >
-          <RotateCcw className="w-4 h-4 text-amber-500" />
+          <RotateCcw className="w-3.5 h-3.5 text-zinc-500" />
+          <span className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 hidden sm:inline">
+            Esc
+          </span>
         </button>
 
+        {/* Step Back Button */}
         <button
           type="button"
           onClick={stepBack}
           disabled={runtime.history.length === 0}
-          className="p-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          title="Шаг назад (Step Back)"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          title="Шаг назад [←]"
         >
-          <SkipBack className="w-4 h-4" />
+          <SkipBack className="w-3.5 h-3.5" />
+          <span className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 hidden sm:inline">
+            ←
+          </span>
         </button>
 
+        {/* Run / Pause Toggle */}
         {isRunning ? (
           <button
             type="button"
             onClick={pauseRunning}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-md transition-all scale-100 hover:scale-105"
-            title="Пауза"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-xs transition-colors"
+            title="Пауза [R]"
           >
-            <Pause className="w-4 h-4 fill-current" />
+            <Pause className="w-3.5 h-3.5 fill-current" />
             <span>Пауза</span>
+            <span className="font-mono text-[10px] opacity-80">[R]</span>
           </button>
         ) : (
           <button
             type="button"
             onClick={startRunning}
-            disabled={runtime.status === 'halted' || runtime.status === 'error'}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold shadow-md disabled:opacity-40 disabled:cursor-not-allowed transition-all scale-100 hover:scale-105"
-            title="Непрерывный запуск"
+            disabled={isHaltedOrError}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="Непрерывное выполнение [R]"
           >
-            <Play className="w-4 h-4 fill-current" />
+            <Play className="w-3.5 h-3.5 fill-current" />
             <span>Запуск</span>
+            <span className="font-mono text-[10px] opacity-80">[R]</span>
           </button>
         )}
 
+        {/* Step Forward Button */}
         <button
           type="button"
           onClick={stepForward}
-          disabled={runtime.status === 'halted' || runtime.status === 'error'}
-          className="p-2 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          title="Один такт вперед (Step)"
+          disabled={isHaltedOrError}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          title="Один такт вперед [Space / →]"
         >
-          <SkipForward className="w-4 h-4" />
+          <SkipForward className="w-3.5 h-3.5" />
+          <span>Шаг</span>
+          <span className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 hidden sm:inline">
+            Space
+          </span>
         </button>
 
         {/* Speed Slider */}
-        <div className="flex items-center gap-2 ml-3 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700">
-          <Gauge className="w-3.5 h-3.5 text-slate-400" />
+        <div className="flex items-center gap-2 ml-2 px-2.5 py-1 rounded bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700">
+          <Gauge className="w-3 h-3 text-zinc-400" />
           <input
             type="range"
             min={30}
@@ -119,51 +137,55 @@ export const DebuggerControls: React.FC = () => {
             step={20}
             value={830 - executionSpeedMs}
             onChange={(e) => setExecutionSpeedMs(830 - Number(e.target.value))}
-            className="w-20 accent-sky-500 h-1.5 cursor-pointer"
-            title={`Скорость: шаг каждые ${executionSpeedMs} мс`}
+            className="w-16 accent-zinc-700 dark:accent-zinc-300 h-1 cursor-pointer"
+            title={`Интервал шага: ${executionSpeedMs} мс`}
           />
-          <span className="font-mono text-[10px] text-slate-500 w-12 text-right">
-            {executionSpeedMs}мс
+          <span className="font-mono text-[10px] text-zinc-500 w-10 text-right">
+            {executionSpeedMs}ms
           </span>
         </div>
       </div>
 
-      {/* Status Message */}
-      <div className="flex-1 max-w-md truncate px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
-        <Activity
-          className={`w-4 h-4 flex-shrink-0 ${
+      {/* Center: Status Message / Readout */}
+      <div className="flex-1 max-w-lg min-w-0 truncate px-2.5 py-1 rounded bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+        <span
+          className={`w-2 h-2 rounded-full flex-shrink-0 ${
             runtime.status === 'running'
-              ? 'text-sky-500 animate-spin'
+              ? 'bg-sky-500 animate-pulse'
               : runtime.status === 'halted'
-              ? 'text-emerald-500'
+              ? 'bg-emerald-500'
               : runtime.status === 'error'
-              ? 'text-rose-500'
-              : 'text-slate-400'
+              ? 'bg-rose-500'
+              : 'bg-zinc-400'
           }`}
         />
+        <span className="font-mono text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-400">
+          [{runtime.status}]
+        </span>
         <span className="truncate font-mono text-[11px]">
-          {runtime.statusMessage || 'Ожидание действий'}
+          {runtime.statusMessage || 'Готов к исполнению'}
         </span>
       </div>
 
-      {/* Complexity Metrics */}
-      <div className="flex items-center gap-3">
-        {/* Call Stack badge if nested machine */}
+      {/* Right: Technical Metrics */}
+      <div className="flex items-center gap-2 font-mono text-[11px]">
         {runtime.callStack.length > 0 && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-semibold text-[11px]">
-            <Layers className="w-3.5 h-3.5" />
-            <span>Стек: {runtime.callStack.length}</span>
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 font-semibold">
+            <Layers className="w-3 h-3" />
+            <span>STACK:{runtime.callStack.length}</span>
           </div>
         )}
 
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 font-mono text-slate-700 dark:text-slate-300">
-          <Clock className="w-3.5 h-3.5 text-sky-500" />
-          <span>Такты: <strong className="text-slate-900 dark:text-slate-100">{runtime.stepCount}</strong></span>
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300">
+          <Clock className="w-3 h-3 text-zinc-400" />
+          <span>TICK:</span>
+          <strong className="text-zinc-900 dark:text-zinc-100">{runtime.stepCount}</strong>
         </div>
 
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/70 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 font-mono text-slate-700 dark:text-slate-300">
-          <HardDrive className="w-3.5 h-3.5 text-emerald-500" />
-          <span>Ячейки: <strong className="text-slate-900 dark:text-slate-100">{runtime.visitedPositions.length}</strong></span>
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300">
+          <HardDrive className="w-3 h-3 text-zinc-400" />
+          <span>CELLS:</span>
+          <strong className="text-zinc-900 dark:text-zinc-100">{runtime.visitedPositions.length}</strong>
         </div>
       </div>
     </div>

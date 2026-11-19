@@ -98,12 +98,51 @@ export function stepMachine(
     nextHistory.shift();
   }
 
-  const currentNode = nodes.find((n) => n.id === state.currentNodeId);
+  // Resolve active scope (submachine if callStack is non-empty, otherwise session root)
+  let activeNodes = nodes;
+  let activeEdges = edges;
+  let activeRules4 = rules4;
+  let activeSubMachineName = '';
+
+  if (state.callStack.length > 0) {
+    const topFrame = state.callStack[state.callStack.length - 1];
+    const subMachine = subMachines?.find((sm) => sm.id === topFrame.subMachineId);
+    if (subMachine) {
+      activeNodes = subMachine.nodes;
+      activeEdges = subMachine.edges;
+      activeRules4 = subMachine.rules4 || [];
+      activeSubMachineName = subMachine.name;
+    }
+  }
+
+  // Look up currentNode in activeNodes, with fallback to root session and all submachines
+  let currentNode = activeNodes.find((n) => n.id === state.currentNodeId);
+  if (!currentNode) {
+    currentNode = nodes.find((n) => n.id === state.currentNodeId);
+    if (currentNode) {
+      activeNodes = nodes;
+      activeEdges = edges;
+      activeRules4 = rules4;
+    } else {
+      for (const sm of (subMachines || [])) {
+        const found = sm.nodes.find((n) => n.id === state.currentNodeId);
+        if (found) {
+          currentNode = found;
+          activeNodes = sm.nodes;
+          activeEdges = sm.edges;
+          activeRules4 = sm.rules4 || [];
+          activeSubMachineName = sm.name;
+          break;
+        }
+      }
+    }
+  }
+
   if (!currentNode) {
     return {
       ...state,
       status: 'error',
-      statusMessage: `Текущее состояние '${state.currentNodeId}' не найдено на диаграмме.`,
+      statusMessage: `Текущее состояние '${state.currentNodeId}' не найдено на диаграмме${activeSubMachineName ? ` (подмашина '${activeSubMachineName}')` : ''}.`,
     };
   }
 
@@ -144,11 +183,11 @@ export function stepMachine(
       : [...state.visitedPositions, newHead];
 
     // Find edge connecting fromState and toState
-    const activeEdge = edges.find(
+    const activeEdge = activeEdges.find(
       (e) => e.source === rule.fromState && e.target === rule.toState
     );
 
-    const targetNode = nodes.find((n) => n.id === rule.toState);
+    const targetNode = activeNodes.find((n) => n.id === rule.toState);
     const targetData = targetNode?.data as StateNodeData | undefined;
     const isHalted =
       targetData?.stateType === 'halt' ||
@@ -183,7 +222,7 @@ export function stepMachine(
       };
     }
 
-    const rule = rules4.find(
+    const rule = activeRules4.find(
       (r) => r.fromState === state.currentNodeId && r.readSymbol === currentSymbol
     );
 
@@ -213,11 +252,11 @@ export function stepMachine(
       ? state.visitedPositions
       : [...state.visitedPositions, newHead];
 
-    const activeEdge = edges.find(
+    const activeEdge = activeEdges.find(
       (e) => e.source === rule.fromState && e.target === rule.toState
     );
 
-    const targetNode = nodes.find((n) => n.id === rule.toState);
+    const targetNode = activeNodes.find((n) => n.id === rule.toState);
     const targetData = targetNode?.data as StateNodeData | undefined;
     const isHalted =
       targetData?.stateType === 'halt' ||
@@ -254,6 +293,8 @@ export function stepMachine(
         ...state,
         currentNodeId: topFrame.returnNodeId,
         callStack: remainingStack,
+        stepCount: state.stepCount + 1,
+        history: nextHistory,
         status: 'running',
         statusMessage: `Возврат из подмашины '${topFrame.subMachineName}' в узел '${topFrame.returnNodeId}'.`,
       };
@@ -308,7 +349,7 @@ export function stepMachine(
     }
 
     // Determine return node: following the outgoing edge from this complex node
-    const outgoing = edges.filter((e) => e.source === currentNode.id);
+    const outgoing = activeEdges.filter((e) => e.source === currentNode.id);
     const returnTargetId = outgoing[0]?.target || currentNode.id;
 
     const newStack: CallStackFrame[] = [
@@ -335,7 +376,7 @@ export function stepMachine(
   const symbolAfterOp = newTape[newHead] ?? blank;
 
   // C. Find matching outgoing branch edge
-  const outgoingEdges = edges.filter((e) => e.source === currentNode.id);
+  const outgoingEdges = activeEdges.filter((e) => e.source === currentNode.id);
   let nextTargetNodeId: string | null = null;
   let chosenEdge: any = null;
 
