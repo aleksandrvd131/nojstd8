@@ -30,32 +30,31 @@ export const StateNode = memo(({ id, data, selected }: NodeProps) => {
         isFinal && 'outline outline-1 outline-offset-2 outline-zinc-400 dark:outline-zinc-600'
       )}
     >
-      {/* Precision Port Handles */}
+      {/* Every side can start or receive a wire; loose mode lets the closest port win. */}
       <Handle
-        type="target"
+        type="source"
         position={Position.Top}
         id="top"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2.5 !h-2.5 !bg-zinc-400 dark:!bg-zinc-500 !border-2 !border-white dark:!border-zinc-900 !rounded-full transition-all hover:!bg-sky-500 hover:!scale-125"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2.5 !h-2.5 !bg-zinc-400 dark:!bg-zinc-500 !border-2 !border-white dark:!border-zinc-900 !rounded-full transition-all hover:!bg-sky-500 hover:!scale-125"
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2.5 !h-2.5 !bg-zinc-400 dark:!bg-zinc-500 !border-2 !border-white dark:!border-zinc-900 !rounded-full transition-all hover:!bg-sky-500 hover:!scale-125"
       />
       <Handle
-        type="target"
+        type="source"
         position={Position.Left}
         id="left"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2.5 !h-2.5 !bg-zinc-400 dark:!bg-zinc-500 !border-2 !border-white dark:!border-zinc-900 !rounded-full transition-all hover:!bg-sky-500 hover:!scale-125"
       />
-
       {/* Header with state indicator */}
       <div className="flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5 min-w-0">

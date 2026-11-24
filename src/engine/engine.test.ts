@@ -8,14 +8,17 @@ if (typeof globalThis.localStorage === 'undefined') {
   };
 }
 
-import { ProjectSession } from '../types/turing';
+import { ProjectSession, TuringNode, TuringEdge } from '../types/turing';
 import { DEMO_PROJECT_1, DEMO_PROJECT_2, DEMO_PROJECT_3 } from '../store/demoProjects';
-import { useTuringStore, autoLayoutGraph } from '../store/useTuringStore';
+import { useTuringStore, autoLayoutGraph, handleDebuggerKeyboardShortcut } from '../store/useTuringStore';
 import { runTestCase, initRuntimeState, stepMachine } from './simulator';
 import {
   convert5TupleTo4Tuple,
   convert4TupleTo5Tuple,
   compileOperationalDiagramTo4Tuples,
+  compileVTMCode,
+  parseVTMCodeDetailed,
+  assignNearestEdgeHandles,
 } from './transpiler';
 import { validateMachine } from './validator';
 import { exportToLaTeX, exportToPlantUML, exportToMarkdown, exportProjectToJSON, importProjectFromJSON } from './exporter';
@@ -573,5 +576,303 @@ assert(stats.stepCount === 0, `Stats stepCount initialized at 0: ${stats.stepCou
 assert(typeof stats.minTapeIndex === 'number' && typeof stats.maxTapeIndex === 'number', 'Tape bounds numeric');
 assert(stats.status === 'idle', `Runtime stats status is idle: ${stats.status}`);
 assert(store.keyboardShortcutsEnabled === true, 'Keyboard shortcuts enabled by default');
+
+console.log('--- 17. Testing VTM Code Fragments, Insertion & Delete Keys ---');
+const parsedVtm = parseVTMCodeDetailed('r^3 R 0', DEMO_PROJECT_1.alphabet);
+assert(parsedVtm.errors.length === 0, 'VTM code "r^3 R 0" parses without errors');
+assert(parsedVtm.ops.length === 5, 'VTM code "r^3 R 0" expands to 5 operations');
+assert(
+  parsedVtm.ops.map((o) => o.opType).join(',') === 'SHIFT_R,SHIFT_R,SHIFT_R,SEARCH_R,WRITE_SYM',
+  'VTM code operations keep the expected order'
+);
+assert(parsedVtm.ops[4].symbolToWrite === '0', 'VTM code write operation stores symbol "0"');
+
+const invalidVtm = parseVTMCodeDetailed('r^0 X', DEMO_PROJECT_1.alphabet);
+assert(invalidVtm.errors.length === 2, 'VTM code reports invalid repeat count and unknown symbol');
+
+const compiledVtm = compileVTMCode('r^3 R 0', DEMO_PROJECT_1.alphabet);
+assert(compiledVtm.nodes.length === 5, 'Compiled VTM code contains only the 5 operation nodes');
+assert(compiledVtm.edges.length === 4, 'Compiled VTM code contains 4 transitions between operations');
+assert(
+  compiledVtm.edges.every((edge) => edge.sourceHandle === 'right' && edge.targetHandle === 'left'),
+  'Generated linear VTM code connects through facing side ports, not the default top ports'
+);
+assert(
+  compiledVtm.nodes.every((n) => {
+    const opType = (n.data as any).opType;
+    return opType !== 'START' && opType !== 'FINISH';
+  }),
+  'Compiled VTM code does not create START or FINISH automatically'
+);
+assert(compiledVtm.rules4.length > 0, 'Compiled VTM code produces 4-tuple rules for the fragment');
+
+// The fragment still runs when the user connects START and FINISH manually.
+const vtmStartNode: TuringNode = {
+  id: 'test_vtm_start',
+  type: 'operationNode',
+  position: { x: 0, y: 0 },
+  data: { label: 'START', opType: 'START' },
+};
+const vtmFinishNode: TuringNode = {
+  id: 'test_vtm_finish',
+  type: 'operationNode',
+  position: { x: 1200, y: 0 },
+  data: { label: 'FINISH', opType: 'FINISH' },
+};
+const vtmFirstNode = compiledVtm.nodes[0];
+const vtmLastNode = compiledVtm.nodes[compiledVtm.nodes.length - 1];
+const vtmStartEdge: TuringEdge = {
+  id: 'e_test_vtm_start',
+  source: vtmStartNode.id,
+  target: vtmFirstNode.id,
+  type: 'customTransition',
+  data: {
+    mode: '4-tuple',
+    subMode: 'operational',
+    rules: [{ id: 'r_test_vtm_start', readSymbol: '*', isWildcard: true }],
+  },
+};
+const vtmFinishEdge: TuringEdge = {
+  id: 'e_test_vtm_finish',
+  source: vtmLastNode.id,
+  target: vtmFinishNode.id,
+  type: 'customTransition',
+  data: {
+    mode: '4-tuple',
+    subMode: 'operational',
+    rules: [{ id: 'r_test_vtm_finish', readSymbol: '*', isWildcard: true }],
+  },
+};
+const vtmFullNodes = [vtmStartNode, ...compiledVtm.nodes, vtmFinishNode];
+const vtmFullEdges = [vtmStartEdge, ...compiledVtm.edges, vtmFinishEdge];
+const vtmCodeProject: ProjectSession = {
+  ...DEMO_PROJECT_1,
+  id: 'test-vtm-code-project',
+  mode: '4-tuple',
+  subMode: 'operational',
+  nodes: vtmFullNodes,
+  edges: vtmFullEdges,
+  rules4: compileOperationalDiagramTo4Tuples(vtmFullNodes, vtmFullEdges, DEMO_PROJECT_1.alphabet),
+  rules5: [],
+  subMachines: [],
+  initialTape: { 0: '1', 1: '1', 2: '1', 3: '1' },
+  initialHeadPosition: 0,
+};
+let vtmCodeState = initRuntimeState(vtmCodeProject);
+let vtmCodeSteps = 0;
+while (vtmCodeState.status !== 'halted' && vtmCodeState.status !== 'error' && vtmCodeSteps < 50) {
+  vtmCodeState = stepMachine(vtmCodeProject, vtmCodeState);
+  vtmCodeSteps++;
+}
+assert(vtmCodeState.status === 'halted', 'VTM code fragment halts when manually connected to FINISH');
+assert(vtmCodeState.headPosition === 4, 'VTM code "r^3 R 0" positions head at index 4');
+assert(vtmCodeState.tape[4] === '0', 'VTM code "r^3 R 0" writes 0 into the first blank cell');
+assert(
+  vtmCodeState.tape[0] === '1' && vtmCodeState.tape[1] === '1' && vtmCodeState.tape[2] === '1' && vtmCodeState.tape[3] === '1',
+  'VTM code execution does not damage the existing tape'
+);
+
+const projectsBeforeVtm = useTuringStore.getState().projects.length;
+const vtmCodeCreated = store.addVTMCode('r^3 R 0', 'VTM Code Test');
+assert(vtmCodeCreated === true, 'Store addVTMCode creates a project for valid code');
+assert(useTuringStore.getState().projects.length === projectsBeforeVtm + 1, 'Store addVTMCode adds exactly one project');
+const createdVtmProject = store.getActiveProject();
+assert(createdVtmProject.name === 'VTM Code Test', 'Store addVTMCode applies the custom project name');
+assert(createdVtmProject.subMode === 'operational', 'Store addVTMCode creates an operational diagram');
+assert(createdVtmProject.nodes.length === 5, 'Store addVTMCode creates only operation nodes');
+assert(
+  createdVtmProject.nodes.every((n) => {
+    const opType = (n.data as any).opType;
+    return opType !== 'START' && opType !== 'FINISH';
+  }),
+  'Store addVTMCode does not add START or FINISH'
+);
+assert(
+  useTuringStore.getState().runtime.currentNodeId === createdVtmProject.nodes[0].id,
+  'Runtime falls back to the first operation node when there is no START'
+);
+
+const invalidVtmCreated = store.addVTMCode('r^3 X');
+assert(invalidVtmCreated === false, 'Store addVTMCode rejects invalid code');
+assert(useTuringStore.getState().projects.length === projectsBeforeVtm + 1, 'Store addVTMCode does not create a project for invalid code');
+
+store.switchProject(DEMO_PROJECT_3.id);
+const insertProjectBefore = store.getActiveProject();
+const nodesBeforeInsert = insertProjectBefore.nodes.length;
+const edgesBeforeInsert = insertProjectBefore.edges.length;
+const vtmInserted = store.insertVTMCode('r R 1');
+assert(vtmInserted === true, 'Store insertVTMCode inserts a valid fragment');
+const insertProjectAfter = store.getActiveProject();
+assert(insertProjectAfter.nodes.length === nodesBeforeInsert + 3, 'Store insertVTMCode adds 3 operation nodes');
+assert(insertProjectAfter.edges.length === edgesBeforeInsert + 2, 'Store insertVTMCode adds 2 fragment transitions');
+assert(
+  new Set(insertProjectAfter.nodes.map((n) => n.id)).size === insertProjectAfter.nodes.length,
+  'Store insertVTMCode keeps node ids unique'
+);
+const firstInsertedVtmNode = insertProjectAfter.nodes.find(
+  (n) => n.id === useTuringStore.getState().selectedNodeId
+);
+assert(
+  Boolean(firstInsertedVtmNode) && (firstInsertedVtmNode!.data as any).opType === 'SHIFT_R',
+  'Store insertVTMCode selects the first inserted node'
+);
+
+const nodesBeforeInvalidInsert = store.getActiveProject().nodes.length;
+const invalidVtmInserted = store.insertVTMCode('r ?');
+assert(invalidVtmInserted === false, 'Store insertVTMCode rejects invalid code');
+assert(store.getActiveProject().nodes.length === nodesBeforeInvalidInsert, 'Invalid insert does not modify the project');
+
+store.setSelectedNodeId(firstInsertedVtmNode!.id);
+const nodesBeforeDeleteKey = store.getActiveProject().nodes.length;
+const deleteHandled = handleDebuggerKeyboardShortcut({
+  key: 'Delete',
+  target: { tagName: 'BODY' },
+  preventDefault() {},
+} as any);
+assert(deleteHandled, 'Delete key is handled');
+assert(store.getActiveProject().nodes.length === nodesBeforeDeleteKey - 1, 'Delete key removes the selected node');
+
+store.setSelectedNodeId(null);
+const edgeForBackspace = store.getActiveProject().edges[0];
+store.setSelectedEdgeId(edgeForBackspace.id);
+const edgesBeforeBackspace = store.getActiveProject().edges.length;
+const backspaceHandled = handleDebuggerKeyboardShortcut({
+  key: 'Backspace',
+  target: { tagName: 'BODY' },
+  preventDefault() {},
+} as any);
+assert(backspaceHandled, 'Backspace key is handled');
+assert(store.getActiveProject().edges.length === edgesBeforeBackspace - 1, 'Backspace key removes the selected edge');
+
+console.log('--- 18. Testing Positioned Node Creation (Context Menu) ---');
+store.switchProject(DEMO_PROJECT_3.id);
+store.addOperationNode('SHIFT_R', 'r', undefined, { x: 777, y: 333 });
+const positionedOperation = store.getActiveProject().nodes.slice(-1)[0];
+assert(
+  positionedOperation.position.x === 777 && positionedOperation.position.y === 333,
+  'addOperationNode uses the supplied context-menu position'
+);
+store.addStateNode('normal', 'q_ctx', { x: 888, y: 444 });
+const positionedState = store.getActiveProject().nodes.slice(-1)[0];
+assert(
+  positionedState.position.x === 888 && positionedState.position.y === 444,
+  'addStateNode uses the supplied context-menu position'
+);
+
+console.log('--- 19. Testing Edge Reconnection ---');
+store.switchProject(DEMO_PROJECT_1.id);
+store.reconnectEdge('edge_q0_q0', {
+  source: 'q0',
+  target: 'q_halt',
+  sourceHandle: null,
+  targetHandle: null,
+});
+const reconnectedProject = store.getActiveProject();
+const reconnectedEdge = reconnectedProject.edges.find((edge) => edge.id === 'edge_q0_q0');
+assert(reconnectedEdge?.source === 'q0' && reconnectedEdge.target === 'q_halt', 'Reconnected edge gets new endpoint');
+assert(
+  reconnectedProject.rules5.filter((rule) => rule.id.startsWith('r')).every((rule) =>
+    rule.id === 'r5' ? rule.toState === 'q_halt' : rule.toState === 'q_halt'
+  ),
+  'Rules attached to the reconnected edge follow its new target'
+);
+store.onConnect({
+  source: 'q0',
+  target: 'q_halt',
+  sourceHandle: 'bottom',
+  targetHandle: 'left',
+});
+store.addFiveTupleRule({
+  fromState: 'q0',
+  readSymbol: '0',
+  writeSymbol: '0',
+  move: 'R',
+  toState: 'q_halt',
+});
+const positionedWire = store
+  .getActiveProject()
+  .edges.find((edge) => edge.source === 'q0' && edge.target === 'q_halt');
+assert(
+  positionedWire?.sourceHandle === 'bottom' && positionedWire.targetHandle === 'left',
+  'New wires retain the exact source and target handles chosen by dragging'
+);
+store.closeRuleModal();
+
+console.log('--- 20. Testing Project Functions and VTM Function Calls ---');
+store.createProject('4-tuple', 'operational', 'Function host');
+const functionHostId = useTuringStore.getState().activeProjectId;
+const functionAdded = store.addProjectFunction(DEMO_PROJECT_3.id, 'K', { x: 420, y: 240 });
+assert(functionAdded, 'An existing operational project can be added as a function');
+const functionHost = store.getActiveProject();
+const importedFunction = functionHost.subMachines.find((fn) => fn.code === 'K');
+const functionNode = functionHost.nodes.find(
+  (node) => (node.data as any).opType === 'COMPLEX_MACHINE'
+);
+assert(Boolean(importedFunction), 'Imported function is registered in the project');
+assert(
+  (functionNode?.data as any)?.subMachineId === importedFunction?.id,
+  'Function node references the imported project machine'
+);
+const functionCodeResult = compileVTMCode('K r', functionHost.alphabet, {
+  functions: functionHost.subMachines,
+});
+assert(functionCodeResult.errors.length === 0, 'VTM code recognizes an imported function letter');
+assert(
+  (functionCodeResult.nodes[0]?.data as any)?.opType === 'COMPLEX_MACHINE' &&
+    (functionCodeResult.nodes[0]?.data as any)?.subMachineId === importedFunction?.id,
+  'A function letter in VTM code compiles to a callable machine node'
+);
+assert(
+  useTuringStore.getState().activeProjectId === functionHostId,
+  'Adding a project function keeps the current host project active'
+);
+
+console.log('--- 21. Testing Nearest Edge Port Defaults ---');
+const nearestPorts = assignNearestEdgeHandles(
+  [
+    { id: 'left_node', type: 'stateNode', position: { x: 0, y: 0 }, data: { label: 'left', stateType: 'normal' } },
+    { id: 'right_node', type: 'stateNode', position: { x: 300, y: 0 }, data: { label: 'right', stateType: 'normal' } },
+    { id: 'lower_node', type: 'stateNode', position: { x: 0, y: 240 }, data: { label: 'lower', stateType: 'normal' } },
+  ] as TuringNode[],
+  [
+    {
+      id: 'horizontal',
+      source: 'left_node',
+      target: 'right_node',
+      type: 'customTransition',
+      data: { mode: '5-tuple', rules: [] },
+    },
+    {
+      id: 'vertical',
+      source: 'left_node',
+      target: 'lower_node',
+      type: 'customTransition',
+      data: { mode: '5-tuple', rules: [] },
+    },
+  ] as TuringEdge[]
+);
+assert(
+  nearestPorts[0].sourceHandle === 'right' && nearestPorts[0].targetHandle === 'left',
+  'A horizontal edge defaults to the closest facing side ports'
+);
+assert(
+  nearestPorts[1].sourceHandle === 'bottom' && nearestPorts[1].targetHandle === 'top',
+  'A vertical edge defaults to the closest facing side ports'
+);
+const fanOutPorts = assignNearestEdgeHandles(
+  [
+    { id: 'fan_source', type: 'operationNode', position: { x: 0, y: 0 }, data: {} },
+    { id: 'fan_upper', type: 'operationNode', position: { x: 300, y: -100 }, data: {} },
+    { id: 'fan_lower', type: 'operationNode', position: { x: 300, y: 100 }, data: {} },
+  ] as TuringNode[],
+  [
+    { id: 'fan_upper_edge', source: 'fan_source', target: 'fan_upper', data: {} },
+    { id: 'fan_lower_edge', source: 'fan_source', target: 'fan_lower', data: {} },
+  ] as TuringEdge[]
+);
+assert(
+  fanOutPorts[0].sourceHandle !== fanOutPorts[1].sourceHandle,
+  'Edges from one node use different ports when their nearest port is occupied'
+);
 
 console.log('\nALL ENGINE AND SIMULATION TESTS PASSED SUCCESSFULLY! 🚀');

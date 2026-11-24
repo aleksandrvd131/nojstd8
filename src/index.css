@@ -41,6 +41,26 @@
 
 .react-flow__handle {
   pointer-events: all !important;
+  cursor: crosshair !important;
+  z-index: 3 !important;
+}
+
+/* Keep connection creation precise: use the normal arrow while panning and a
+   crosshair on ports/in progress instead of React Flow's oversized grab hand. */
+.react-flow__pane.draggable {
+  cursor: default !important;
+}
+
+.react-flow__pane.connecting,
+.react-flow__handle.connecting,
+.react-flow__handle.valid,
+.react-flow__handle-connecting {
+  cursor: crosshair !important;
+}
+
+.react-flow__connection-path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .react-flow__edge-path {

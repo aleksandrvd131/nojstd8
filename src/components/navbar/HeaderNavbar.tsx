@@ -54,7 +54,7 @@ export const HeaderNavbar: React.FC = () => {
           </div>
           <div className="flex items-center gap-1.5 hidden sm:flex">
             <span className="font-bold tracking-tight text-zinc-900 dark:text-zinc-100 text-xs font-mono uppercase">
-              Turing<span className="text-sky-500">IDE</span>
+              <span className="text-zinc-900 dark:text-zinc-100">nojstd</span>
             </span>
             <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
               v1.0

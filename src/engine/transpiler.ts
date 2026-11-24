@@ -6,6 +6,9 @@ import {
   OperationalNodeType,
   AlphabetConfig,
   FourTupleSubMode,
+  ParsedCodeOp,
+  OperationNodeData,
+  SubMachine,
 } from '../types/turing';
 
 /**
@@ -290,4 +293,357 @@ export function buildEdgesFromRules(
   }
 
   return edges;
+}
+
+/**
+ * Choose facing handles for rule-table edges that don't yet have user-selected
+ * handles. This avoids React Flow falling back to the first handle (top).
+ */
+export function assignNearestEdgeHandles(
+  nodes: TuringNode[],
+  edges: TuringEdge[],
+  existingEdges: TuringEdge[] = []
+): TuringEdge[] {
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const existingByPair = new Map(
+    existingEdges.map((edge) => [`${edge.source}->${edge.target}`, edge])
+  );
+  const occupied = new Map<string, Set<string>>();
+  const reserve = (nodeId: string, handleId?: string | null) => {
+    if (!handleId) return;
+    const handles = occupied.get(nodeId) ?? new Set<string>();
+    handles.add(handleId);
+    occupied.set(nodeId, handles);
+  };
+
+  // Keep explicit/manual connections on their chosen handles and reserve
+  // those ports before auto-assigning the remaining edges.
+  for (const edge of edges) {
+    reserve(edge.source, edge.sourceHandle);
+    reserve(edge.target, edge.targetHandle);
+  }
+  for (const edge of existingEdges) {
+    reserve(edge.source, edge.sourceHandle);
+    reserve(edge.target, edge.targetHandle);
+  }
+
+  return edges.map((edge) => {
+    const oldEdge = existingByPair.get(`${edge.source}->${edge.target}`);
+    if (edge.sourceHandle && edge.targetHandle) return edge;
+    if (oldEdge?.sourceHandle && oldEdge.targetHandle) {
+      return {
+        ...edge,
+        sourceHandle: edge.sourceHandle ?? oldEdge.sourceHandle,
+        targetHandle: edge.targetHandle ?? oldEdge.targetHandle,
+      };
+    }
+
+    const sourceNode = nodeMap.get(edge.source);
+    const targetNode = nodeMap.get(edge.target);
+    if (!sourceNode || !targetNode) return edge;
+
+    if (edge.source === edge.target) {
+      reserve(edge.source, 'top');
+      reserve(edge.target, 'right');
+      return {
+        ...edge,
+        sourceHandle: edge.sourceHandle ?? 'top',
+        targetHandle: edge.targetHandle ?? 'right',
+      };
+    }
+
+    const sourceMeasured = sourceNode as TuringNode & {
+      width?: number;
+      height?: number;
+      measured?: { width?: number; height?: number };
+    };
+    const targetMeasured = targetNode as TuringNode & {
+      width?: number;
+      height?: number;
+      measured?: { width?: number; height?: number };
+    };
+    const sourceWidth =
+      sourceMeasured.measured?.width ?? sourceMeasured.width ??
+      (sourceNode.type === 'stateNode' ? 210 : 230);
+    const sourceHeight =
+      sourceMeasured.measured?.height ?? sourceMeasured.height ?? 80;
+    const targetWidth =
+      targetMeasured.measured?.width ?? targetMeasured.width ??
+      (targetNode.type === 'stateNode' ? 210 : 230);
+    const targetHeight =
+      targetMeasured.measured?.height ?? targetMeasured.height ?? 80;
+    const sourceCenter = {
+      x: sourceNode.position.x + sourceWidth / 2,
+      y: sourceNode.position.y + sourceHeight / 2,
+    };
+    const targetCenter = {
+      x: targetNode.position.x + targetWidth / 2,
+      y: targetNode.position.y + targetHeight / 2,
+    };
+    const portPoints = (center: { x: number; y: number }, width: number, height: number) => [
+      { id: 'top', x: center.x, y: center.y - height / 2 },
+      { id: 'right', x: center.x + width / 2, y: center.y },
+      { id: 'bottom', x: center.x, y: center.y + height / 2 },
+      { id: 'left', x: center.x - width / 2, y: center.y },
+    ];
+    const nearestFreePort = (
+      nodeId: string,
+      ports: ReturnType<typeof portPoints>,
+      other: { x: number; y: number },
+      preferred?: string | null
+    ) => {
+      const taken = occupied.get(nodeId) ?? new Set<string>();
+      const ranked = preferred
+        ? [...ports].sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred))
+        : [...ports].sort(
+            (a, b) =>
+              Math.hypot(a.x - other.x, a.y - other.y) -
+              Math.hypot(b.x - other.x, b.y - other.y)
+          );
+      return ranked.find((port) => !taken.has(port.id))?.id ?? ranked[0].id;
+    };
+    const sourcePort = edge.sourceHandle
+      ? edge.sourceHandle
+      : nearestFreePort(
+          edge.source,
+          portPoints(sourceCenter, sourceWidth, sourceHeight),
+          targetCenter,
+          oldEdge?.sourceHandle
+        );
+    const targetPort = edge.targetHandle
+      ? edge.targetHandle
+      : nearestFreePort(
+          edge.target,
+          portPoints(targetCenter, targetWidth, targetHeight),
+          sourceCenter,
+          oldEdge?.targetHandle
+        );
+    reserve(edge.source, sourcePort);
+    reserve(edge.target, targetPort);
+
+    return {
+      ...edge,
+      sourceHandle: sourcePort,
+      targetHandle: targetPort,
+    };
+  });
+}
+
+/**
+ * Result of parsing VTM shorthand code.
+ */
+export interface ParseVTMCodeResult {
+  ops: ParsedCodeOp[];
+  errors: string[];
+}
+
+/**
+ * Human-readable label for one parsed operation.
+ */
+export function getVTMCodeOpLabel(op: ParsedCodeOp): string {
+  if (op.opType === 'COMPLEX_MACHINE') {
+    return op.functionCode || op.subMachineName || 'K';
+  }
+  switch (op.opType) {
+    case 'SHIFT_R':
+      return 'r';
+    case 'SHIFT_L':
+      return 'l';
+    case 'SEARCH_R':
+      return 'R';
+    case 'SEARCH_L':
+      return 'L';
+    case 'WRITE_SYM':
+      return `[${op.symbolToWrite ?? '?'}]`;
+    default:
+      return op.opType;
+  }
+}
+
+/**
+ * Parse shorthand VTM code like "r^3 R 0" into parsed operations.
+ *
+ * Supported syntax (space separated):
+ *   - r / r^n : shift right once / n times
+ *   - l / l^n : shift left once / n times
+ *   - R / R^n : search right until a blank cell (repeatable)
+ *   - L / L^n : search left until a blank cell (repeatable)
+ *   - <symbol> / <symbol>^n : write a symbol from the alphabet (repeatable)
+ *
+ * Example: "r^3 R 0" = shift right 3 times, then search right to the
+ * next blank cell, then write 0.
+ */
+export function parseVTMCodeDetailed(
+  code: string,
+  alphabet: AlphabetConfig,
+  functions: SubMachine[] = []
+): ParseVTMCodeResult {
+  const ops: ParsedCodeOp[] = [];
+  const errors: string[] = [];
+  const symbols = new Set([...alphabet.symbols, alphabet.blankSymbol]);
+
+  const tokens = code.trim().split(/\s+/).filter(Boolean);
+
+  for (const token of tokens) {
+    const repeatMatch = token.match(/^(.*)\^(\d+)$/);
+    const base = repeatMatch ? repeatMatch[1] : token;
+    const count = repeatMatch ? Number(repeatMatch[2]) : 1;
+
+    if (!base) {
+      errors.push(`Некорректный токен: "${token}"`);
+      continue;
+    }
+
+    if (!Number.isFinite(count) || count < 1) {
+      errors.push(`Некорректное число повторений в "${token}" (нужно >= 1)`);
+      continue;
+    }
+
+    const functionDefinition = !repeatMatch
+      ? functions.find((candidate) => candidate.code === base)
+      : undefined;
+    if (functionDefinition) {
+      ops.push({
+        opType: 'COMPLEX_MACHINE',
+        subMachineId: functionDefinition.id,
+        subMachineName: functionDefinition.name,
+        functionCode: functionDefinition.code,
+      });
+      continue;
+    }
+
+    let opType: OperationalNodeType | null = null;
+    switch (base) {
+      case 'r':
+        opType = 'SHIFT_R';
+        break;
+      case 'l':
+        opType = 'SHIFT_L';
+        break;
+      case 'R':
+        opType = 'SEARCH_R';
+        break;
+      case 'L':
+        opType = 'SEARCH_L';
+        break;
+      default:
+        break;
+    }
+
+    if (opType) {
+      for (let i = 0; i < count; i++) {
+        ops.push({ opType });
+      }
+      continue;
+    }
+
+    if (symbols.has(base)) {
+      for (let i = 0; i < count; i++) {
+        ops.push({ opType: 'WRITE_SYM', symbolToWrite: base });
+      }
+      continue;
+    }
+
+    errors.push(
+      `Неизвестная операция или символ: "${token}". ` +
+        `Доступные символы: ${[...symbols].join(', ')}`
+    );
+  }
+
+  return { ops, errors };
+}
+
+/**
+ * Backwards-compatible helper that returns only the parsed operations.
+ */
+export function parseVTMCode(code: string, alphabet: AlphabetConfig): ParsedCodeOp[] {
+  return parseVTMCodeDetailed(code, alphabet).ops;
+}
+
+/**
+ * Compile parsed VTM code operations into a fragment of an operational diagram.
+ *
+ * Only operation nodes and the transitions between them are generated.
+ * START and FINISH are intentionally not created: the fragment can be
+ * inserted into an existing diagram and connected manually.
+ */
+export function compileVTMCodeToNodesAndEdges(
+  parsedOps: ParsedCodeOp[],
+  alphabet: AlphabetConfig,
+  options: { idPrefix?: string } = {}
+): { nodes: TuringNode[]; edges: TuringEdge[]; rules4: FourTupleRule[] } {
+  const nodes: TuringNode[] = [];
+  const edges: TuringEdge[] = [];
+  const prefix = options.idPrefix ?? 'vtm';
+
+  parsedOps.forEach((op, index) => {
+    const nodeId = `${prefix}_op_${index}`;
+
+    nodes.push({
+      id: nodeId,
+      type: 'operationNode',
+      position: { x: 100 + index * 180, y: 150 },
+      data: {
+        label: getVTMCodeOpLabel(op),
+        opType: op.opType,
+        symbolToWrite: op.symbolToWrite,
+        subMachineId: op.subMachineId,
+        subMachineName: op.subMachineName,
+      },
+    });
+
+    if (index > 0) {
+      const previousId = `${prefix}_op_${index - 1}`;
+      edges.push({
+      id: `e_${previousId}_${nodeId}`,
+      source: previousId,
+      target: nodeId,
+      sourceHandle: 'right',
+      targetHandle: 'left',
+      type: 'customTransition',
+        data: {
+          mode: '4-tuple',
+          subMode: 'operational',
+          rules: [
+            {
+              id: `r_${previousId}_${nodeId}`,
+              readSymbol: '*',
+              isWildcard: true,
+            },
+          ],
+        },
+      });
+    }
+  });
+
+  const rules4 = compileOperationalDiagramTo4Tuples(nodes, edges, alphabet);
+
+  return { nodes, edges, rules4 };
+}
+
+/**
+ * Full compilation: parse VTM code and return project-ready data.
+ */
+export function compileVTMCode(
+  code: string,
+  alphabet: AlphabetConfig,
+  options: { name?: string; idPrefix?: string; functions?: SubMachine[] } = {}
+) {
+  const { ops, errors } = parseVTMCodeDetailed(code, alphabet, options.functions);
+  const { nodes, edges, rules4 } = compileVTMCodeToNodesAndEdges(ops, alphabet, {
+    idPrefix: options.idPrefix,
+  });
+
+  const projectName =
+    options.name?.trim() ||
+    `VTM: ${code.replace(/\s+/g, ' ').trim()}`;
+
+  return {
+    nodes,
+    edges,
+    rules4,
+    parsedOps: ops,
+    errors,
+    projectName,
+  };
 }

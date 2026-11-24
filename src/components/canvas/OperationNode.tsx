@@ -104,32 +104,31 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
         isFinish && 'outline outline-1 outline-offset-2 outline-rose-500/50'
       )}
     >
-      {/* Precision Port Handles */}
+      {/* All four ports can start or receive wires (React Flow loose mode). */}
       <Handle
-        type="target"
+        type="source"
         position={Position.Top}
         id="top"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2.5 !h-2.5 !bg-zinc-400 dark:!bg-zinc-500 !border-2 !border-white dark:!border-zinc-900 !rounded-full transition-all hover:!bg-sky-500 hover:!scale-125"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2.5 !h-2.5 !bg-zinc-400 dark:!bg-zinc-500 !border-2 !border-white dark:!border-zinc-900 !rounded-full transition-all hover:!bg-sky-500 hover:!scale-125"
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2.5 !h-2.5 !bg-zinc-400 dark:!bg-zinc-500 !border-2 !border-white dark:!border-zinc-900 !rounded-full transition-all hover:!bg-sky-500 hover:!scale-125"
       />
       <Handle
-        type="target"
+        type="source"
         position={Position.Left}
         id="left"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2.5 !h-2.5 !bg-zinc-400 dark:!bg-zinc-500 !border-2 !border-white dark:!border-zinc-900 !rounded-full transition-all hover:!bg-sky-500 hover:!scale-125"
       />
-
       <div className="flex items-center gap-2">
         <div className="flex-shrink-0">{badge.icon}</div>
         <div className="flex-1 min-w-0">

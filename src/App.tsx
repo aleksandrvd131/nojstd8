@@ -40,6 +40,11 @@ export const App: React.FC = () => {
     }
   }, [theme]);
 
+  // Older persisted sessions had VTM Code as an inspector tab.
+  useEffect(() => {
+    if ((activeTab as string) === 'vtm-code') setActiveTab('tuples');
+  }, [activeTab, setActiveTab]);
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans">
       {/* 1. Header Navigation Bar (Compact 48px) */}
@@ -70,11 +75,11 @@ export const App: React.FC = () => {
         {isInspectorOpen && (
           <aside className="w-96 lg:w-[420px] h-full flex flex-col bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 shadow-sm z-10 animate-in slide-in-from-right-2 duration-150">
             {/* Inspector Tab Bar */}
-            <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-2 text-xs font-medium">
+            <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-2 text-xs font-medium overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setActiveTab('tuples')}
-                className={`py-2.5 px-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`py-2.5 px-3 border-b-2 flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap transition-colors ${
                   activeTab === 'tuples'
                     ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
                     : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -87,7 +92,7 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('matrix')}
-                className={`py-2.5 px-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`py-2.5 px-3 border-b-2 flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap transition-colors ${
                   activeTab === 'matrix'
                     ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
                     : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -100,7 +105,7 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('check')}
-                className={`py-2.5 px-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`py-2.5 px-3 border-b-2 flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap transition-colors ${
                   activeTab === 'check'
                     ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
                     : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -113,7 +118,7 @@ export const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('tests')}
-                className={`py-2.5 px-3 border-b-2 flex items-center gap-1.5 transition-colors ${
+                className={`py-2.5 px-3 border-b-2 flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap transition-colors ${
                   activeTab === 'tests'
                     ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
                     : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
@@ -122,6 +127,7 @@ export const App: React.FC = () => {
                 <CheckSquare className="w-3.5 h-3.5" />
                 <span>Тесты</span>
               </button>
+
             </div>
 
             {/* Tab content area */}

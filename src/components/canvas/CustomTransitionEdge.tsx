@@ -83,6 +83,15 @@ export const CustomTransitionEdge = memo(
       labelY = by;
     }
 
+    if (!isSelfLoop) {
+      const dx = targetX - sourceX;
+      const dy = targetY - sourceY;
+      const length = Math.hypot(dx, dy) || 1;
+      // Keep rule chips slightly off the wire so the arrow remains visible.
+      labelX += (-dy / length) * 18;
+      labelY += (dx / length) * 18;
+    }
+
     const rules: EdgeRuleItem[] = edgeData?.rules || [];
 
     const handleRuleClick = (e: React.MouseEvent, rule: EdgeRuleItem) => {
@@ -140,9 +149,9 @@ export const CustomTransitionEdge = memo(
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
             }}
-            className="flex flex-col items-center gap-1 z-10"
+            className="flex items-center justify-center z-20"
           >
-            <div className="flex flex-wrap items-center justify-center gap-1 max-w-[200px] p-1 rounded bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 shadow-xs">
+            <div className="flex max-w-[240px] flex-wrap items-center justify-center gap-1 rounded-full border border-zinc-200/90 bg-white/95 px-1.5 py-1 shadow-md backdrop-blur-sm dark:border-zinc-700 dark:bg-zinc-900/95">
               {rules.map((rule) => {
                 let text = '';
                 if (mode === '5-tuple') {
@@ -160,10 +169,10 @@ export const CustomTransitionEdge = memo(
                     key={rule.id}
                     onClick={(e) => handleRuleClick(e, rule)}
                     className={clsx(
-                      'group/pill flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium cursor-pointer transition-colors',
+                      'group/pill flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono font-medium cursor-pointer transition-colors',
                       isActive
-                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/40 font-bold'
-                        : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700'
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 font-bold'
+                        : 'bg-zinc-100 text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
                     )}
                     title="Нажмите для редактирования правила"
                   >
@@ -183,7 +192,7 @@ export const CustomTransitionEdge = memo(
               <button
                 type="button"
                 onClick={handleAddRuleClick}
-                className="flex items-center justify-center w-4 h-4 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
                 title="Добавить правило перехода"
               >
                 <Plus className="w-3 h-3" />

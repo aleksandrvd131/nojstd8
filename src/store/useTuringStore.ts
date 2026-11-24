@@ -29,6 +29,8 @@ import {
   convert4TupleTo5Tuple,
   compileOperationalDiagramTo4Tuples,
   buildEdgesFromRules,
+  assignNearestEdgeHandles,
+  compileVTMCode,
 } from '../engine/transpiler';
 import { exportDiagramAsImage, ExportImageOptions } from '../utils/exportImage';
 import { INITIAL_PROJECTS } from './demoProjects';
@@ -109,6 +111,8 @@ interface TuringStoreState {
     sourceNodeId?: string;
     targetNodeId?: string;
     ruleId?: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
   } | null;
   executionSpeedMs: number;
   isRunning: boolean;
@@ -122,8 +126,22 @@ interface TuringStoreState {
   setSessionDrawerOpen: (open: boolean) => void;
   setAlphabetModalOpen: (open: boolean) => void;
   setExportModalOpen: (open: boolean) => void;
-  openRuleModal: (data: { edgeId?: string; sourceNodeId?: string; targetNodeId?: string; ruleId?: string }) => void;
+  openRuleModal: (data: {
+    edgeId?: string;
+    sourceNodeId?: string;
+    targetNodeId?: string;
+    ruleId?: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  }) => void;
   closeRuleModal: () => void;
+  addVTMCode: (code: string, name?: string) => boolean;
+  insertVTMCode: (code: string) => boolean;
+  addProjectFunction: (
+    sourceProjectId: string,
+    code: string,
+    position?: { x: number; y: number }
+  ) => boolean;
   setExecutionSpeedMs: (speed: number) => void;
   toggleKeyboardShortcuts: () => void;
   setKeyboardShortcutsEnabled: (enabled: boolean) => void;
@@ -155,8 +173,14 @@ interface TuringStoreState {
   onNodesChange: (changes: NodeChange<TuringNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<TuringEdge>[]) => void;
   onConnect: (connection: Connection) => void;
-  addStateNode: (type: StateNodeType, label?: string) => void;
-  addOperationNode: (opType: OperationalNodeType, label?: string, symbolToWrite?: string) => void;
+  reconnectEdge: (edgeId: string, connection: Connection) => void;
+  addStateNode: (type: StateNodeType, label?: string, position?: { x: number; y: number }) => void;
+  addOperationNode: (
+    opType: OperationalNodeType,
+    label?: string,
+    symbolToWrite?: string,
+    position?: { x: number; y: number }
+  ) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   deleteNode: (id: string) => void;
   applyAutoLayout: () => void;
@@ -245,6 +269,247 @@ export const useTuringStore = create<TuringStoreState>()(
       executionSpeedMs: 250,
       isRunning: false,
       keyboardShortcutsEnabled: true,
+
+      addVTMCode: (code: string, name?: string) => {
+        const project = get().getActiveProject();
+        const alphabet = project.alphabet;
+
+        const result = compileVTMCode(code, alphabet, {
+          name,
+          functions: project.subMachines,
+        });
+
+        // Do not create a broken machine if the code could not be parsed.
+        if (result.errors.length > 0 || result.parsedOps.length === 0) {
+          return false;
+        }
+
+        const newId = `project_vtm_${Date.now()}`;
+        const newProject: ProjectSession = {
+          id: newId,
+          name: name?.trim() || result.projectName,
+          description: `Операционная диаграмма ВТМ, сгенерированная из кода: "${code}"`,
+          mode: '4-tuple',
+          subMode: 'operational',
+          alphabet: { ...alphabet, symbols: [...alphabet.symbols] },
+          nodes: result.nodes,
+          edges: result.edges,
+          rules4: result.rules4,
+          rules5: [],
+          subMachines: project.subMachines.map((machine) => ({
+            ...machine,
+            nodes: machine.nodes.map((node) => ({ ...node, data: { ...node.data } })),
+            edges: machine.edges.map((edge) => ({
+              ...edge,
+              data: {
+                ...edge.data,
+                mode: edge.data?.mode ?? '4-tuple',
+                subMode: edge.data?.subMode ?? 'operational',
+                rules: [...(edge.data?.rules ?? [])],
+              },
+            })),
+          })),
+          // Keep the current tape so the generated machine can be run at once.
+          initialTape: { ...project.initialTape },
+          initialHeadPosition: project.initialHeadPosition,
+          testCases: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        set((state) => ({
+          projects: [newProject, ...state.projects],
+          activeProjectId: newId,
+          runtime: initRuntimeState(newProject),
+          isSessionDrawerOpen: false,
+        }));
+
+        return true;
+      },
+
+      insertVTMCode: (code: string) => {
+        const project = get().getActiveProject();
+
+        // Operation nodes only make sense inside an operational VTM diagram.
+        if (project.subMode !== 'operational') {
+          return false;
+        }
+
+        const result = compileVTMCode(code, project.alphabet, {
+          idPrefix: `vtm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+          functions: project.subMachines,
+        });
+
+        if (result.errors.length > 0 || result.parsedOps.length === 0) {
+          return false;
+        }
+
+        const existingNodes = project.nodes;
+        const startX = existingNodes.length
+          ? Math.max(...existingNodes.map((n) => n.position.x)) + 220
+          : 100;
+        const shiftX = startX - 100;
+
+        const insertedNodes = result.nodes.map((node) => ({
+          ...node,
+          position: { x: node.position.x + shiftX, y: node.position.y },
+        }));
+
+        const nodes = [...existingNodes, ...insertedNodes];
+        const edges = [...project.edges, ...result.edges];
+        const rules4 = compileOperationalDiagramTo4Tuples(nodes, edges, project.alphabet);
+
+        get().updateActiveProject((prev) => ({
+          ...prev,
+          nodes,
+          edges,
+          rules4,
+        }));
+
+        set({
+          selectedNodeId: insertedNodes[0]?.id ?? null,
+          selectedEdgeId: null,
+        });
+
+        return true;
+      },
+
+      addProjectFunction: (
+        sourceProjectId: string,
+        code: string,
+        position?: { x: number; y: number }
+      ) => {
+        const { projects, activeProjectId } = get();
+        const parent = get().getActiveProject();
+        const source = projects.find((candidate) => candidate.id === sourceProjectId);
+        const functionCode = code.trim().toUpperCase();
+
+        if (
+          !source ||
+          source.id === activeProjectId ||
+          source.subMode !== 'operational' ||
+          !/^[A-Z]$/.test(functionCode) ||
+          ['R', 'L'].includes(functionCode) ||
+          parent.alphabet.symbols.includes(functionCode) ||
+          parent.subMachines.some((machine) => machine.code === functionCode) ||
+          source.nodes.length === 0
+        ) {
+          return false;
+        }
+
+        const functionId = `function_${source.id}_${Date.now().toString(36)}`;
+        const sourceNodes = source.nodes.map((node) => ({
+          ...node,
+          position: { ...node.position },
+          data: { ...node.data },
+        }));
+        const sourceEdges: TuringEdge[] = source.edges.map((edge) => ({
+          ...edge,
+          data: {
+            ...edge.data,
+            mode: edge.data?.mode ?? source.mode,
+            subMode: edge.data?.subMode ?? source.subMode,
+            rules: [...(edge.data?.rules ?? [])],
+          },
+        }));
+        let startNodeId = sourceNodes.find(
+          (node) => (node.data as OperationNodeData).opType === 'START'
+        )?.id;
+        let finishNodeId = sourceNodes.find(
+          (node) => (node.data as OperationNodeData).opType === 'FINISH'
+        )?.id;
+
+        if (!startNodeId) {
+          startNodeId = `${functionId}_start`;
+          sourceNodes.unshift({
+            id: startNodeId,
+            type: 'operationNode',
+            position: { x: 0, y: 0 },
+            data: { label: 'START', opType: 'START' },
+          });
+          const firstNode = source.nodes[0];
+          sourceEdges.push({
+            id: `${functionId}_entry`,
+            source: startNodeId,
+            target: firstNode.id,
+            sourceHandle: 'right',
+            targetHandle: 'left',
+            type: 'customTransition',
+            data: {
+              mode: '4-tuple',
+              subMode: 'operational',
+              rules: [{ id: `${functionId}_entry_rule`, readSymbol: '*', isWildcard: true }],
+            },
+          });
+        }
+
+        if (!finishNodeId) {
+          finishNodeId = `${functionId}_finish`;
+          sourceNodes.push({
+            id: finishNodeId,
+            type: 'operationNode',
+            position: { x: 900, y: 0 },
+            data: { label: 'FINISH', opType: 'FINISH' },
+          });
+          const nodesWithOutgoing = new Set(sourceEdges.map((edge) => edge.source));
+          const terminalNodes = source.nodes.filter(
+            (node) =>
+              (node.data as OperationNodeData).opType !== 'FINISH' &&
+              !nodesWithOutgoing.has(node.id)
+          );
+          for (const node of terminalNodes) {
+            sourceEdges.push({
+              id: `${functionId}_exit_${node.id}`,
+              source: node.id,
+              target: finishNodeId,
+              sourceHandle: 'right',
+              targetHandle: 'left',
+              type: 'customTransition',
+              data: {
+                mode: '4-tuple',
+                subMode: 'operational',
+                rules: [{ id: `${functionId}_exit_rule_${node.id}`, readSymbol: '*', isWildcard: true }],
+              },
+            });
+          }
+        }
+
+        const sourceMachine: SubMachine = {
+          id: functionId,
+          name: source.name,
+          code: functionCode,
+          description: source.description,
+          nodes: sourceNodes,
+          edges: sourceEdges,
+          rules4: compileOperationalDiagramTo4Tuples(sourceNodes, sourceEdges, source.alphabet),
+        };
+
+        let suffix = parent.nodes.length;
+        let nodeId = `op_function_${functionCode}_${suffix}`;
+        const existingIds = new Set(parent.nodes.map((node) => node.id));
+        while (existingIds.has(nodeId)) nodeId = `op_function_${functionCode}_${++suffix}`;
+
+        const functionNode: TuringNode = {
+          id: nodeId,
+          type: 'operationNode',
+          position: position ?? { x: 160 + (suffix % 4) * 180, y: 140 + Math.floor(suffix / 4) * 140 },
+          data: {
+            label: functionCode,
+            opType: 'COMPLEX_MACHINE',
+            subMachineId: functionId,
+            subMachineName: source.name,
+            description: `Функция ${functionCode}: ${source.name}`,
+          },
+        };
+
+        get().updateActiveProject((prev) => ({
+          ...prev,
+          subMachines: [...prev.subMachines, sourceMachine],
+          nodes: [...prev.nodes, functionNode],
+        }));
+        set({ selectedNodeId: nodeId, selectedEdgeId: null });
+        return true;
+      },
 
       toggleTheme: () =>
         set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
@@ -430,7 +695,11 @@ export const useTuringStore = create<TuringStoreState>()(
           }));
 
           const allNodes = [...project.nodes, ...auxTuringNodes];
-          const newEdges = buildEdgesFromRules(rules4, '4-tuple', project.subMode);
+          const newEdges = assignNearestEdgeHandles(
+            allNodes,
+            buildEdgesFromRules(rules4, '4-tuple', project.subMode),
+            project.edges
+          );
 
           updatedProject = {
             ...project,
@@ -442,7 +711,11 @@ export const useTuringStore = create<TuringStoreState>()(
         } else {
           // Convert 4-tuple -> 5-tuple
           const rules5 = convert4TupleTo5Tuple(project.rules4);
-          const newEdges = buildEdgesFromRules(rules5, '5-tuple');
+          const newEdges = assignNearestEdgeHandles(
+            project.nodes,
+            buildEdgesFromRules(rules5, '5-tuple'),
+            project.edges
+          );
 
           updatedProject = {
             ...project,
@@ -553,7 +826,11 @@ export const useTuringStore = create<TuringStoreState>()(
             project.edges,
             project.alphabet
           );
-          const edges = buildEdgesFromRules(compiledRules, '4-tuple', 'state-graph');
+          const edges = assignNearestEdgeHandles(
+            project.nodes,
+            buildEdgesFromRules(compiledRules, '4-tuple', 'state-graph'),
+            project.edges
+          );
 
           // Convert operational nodes into state nodes if needed
           const stateNodes: TuringNode[] = project.nodes.map((n) => {
@@ -823,10 +1100,48 @@ export const useTuringStore = create<TuringStoreState>()(
         get().openRuleModal({
           sourceNodeId: connection.source,
           targetNodeId: connection.target,
+          sourceHandle: connection.sourceHandle,
+          targetHandle: connection.targetHandle,
         });
       },
 
-      addStateNode: (type: StateNodeType, label?: string) => {
+      reconnectEdge: (edgeId: string, connection: Connection) => {
+        if (!connection.source || !connection.target) return;
+        get().updateActiveProject((prev) => {
+          const oldEdge = prev.edges.find((edge) => edge.id === edgeId);
+          if (!oldEdge) return prev;
+
+          const edges = prev.edges.map((edge) =>
+            edge.id === edgeId
+              ? {
+                  ...edge,
+                  source: connection.source!,
+                  target: connection.target!,
+                  sourceHandle: connection.sourceHandle,
+                  targetHandle: connection.targetHandle,
+                }
+              : edge
+          );
+          const rules5 = prev.rules5.map((rule) =>
+            rule.fromState === oldEdge.source && rule.toState === oldEdge.target
+              ? { ...rule, fromState: connection.source!, toState: connection.target! }
+              : rule
+          );
+          let rules4 = prev.rules4.map((rule) =>
+            rule.fromState === oldEdge.source && rule.toState === oldEdge.target
+              ? { ...rule, fromState: connection.source!, toState: connection.target! }
+              : rule
+          );
+
+          if (prev.subMode === 'operational') {
+            rules4 = compileOperationalDiagramTo4Tuples(prev.nodes, edges, prev.alphabet);
+          }
+
+          return { ...prev, edges, rules5, rules4 };
+        });
+      },
+
+      addStateNode: (type: StateNodeType, label?: string, position?: { x: number; y: number }) => {
         const project = get().getActiveProject();
         let idx = project.nodes.length;
         let newId = type === 'halt' ? 'q_halt' : `q${idx}`;
@@ -839,10 +1154,11 @@ export const useTuringStore = create<TuringStoreState>()(
         const newNode: TuringNode = {
           id: newId,
           type: 'stateNode',
-          position: {
-            x: 100 + (count % 4) * 180,
-            y: 100 + Math.floor(count / 4) * 140,
-          },
+          position:
+            position ?? {
+              x: 100 + (count % 4) * 180,
+              y: 100 + Math.floor(count / 4) * 140,
+            },
           data: {
             label: label || newId,
             stateType: type,
@@ -855,7 +1171,12 @@ export const useTuringStore = create<TuringStoreState>()(
         }));
       },
 
-      addOperationNode: (opType: OperationalNodeType, label?: string, symbolToWrite?: string) => {
+      addOperationNode: (
+        opType: OperationalNodeType,
+        label?: string,
+        symbolToWrite?: string,
+        position?: { x: number; y: number }
+      ) => {
         const project = get().getActiveProject();
         let count = project.nodes.length;
         let newId = `op_${opType.toLowerCase()}_${count}`;
@@ -867,10 +1188,11 @@ export const useTuringStore = create<TuringStoreState>()(
         const newNode: TuringNode = {
           id: newId,
           type: 'operationNode',
-          position: {
-            x: 100 + (count % 4) * 180,
-            y: 100 + Math.floor(count / 4) * 140,
-          },
+          position:
+            position ?? {
+              x: 100 + (count % 4) * 180,
+              y: 100 + Math.floor(count / 4) * 140,
+            },
           data: {
             label: label || opType,
             opType,
@@ -929,7 +1251,27 @@ export const useTuringStore = create<TuringStoreState>()(
         };
         get().updateActiveProject((prev) => {
           const rules5 = [...prev.rules5, newRule];
-          const edges = buildEdgesFromRules(rules5, '5-tuple');
+          const pendingConnection = get().ruleModalData;
+          const edges = assignNearestEdgeHandles(
+            prev.nodes,
+            buildEdgesFromRules(rules5, '5-tuple'),
+            prev.edges
+          ).map((edge) =>
+            pendingConnection?.sourceNodeId === edge.source &&
+            pendingConnection?.targetNodeId === edge.target
+              ? {
+                  ...edge,
+                  sourceHandle:
+                    pendingConnection.sourceHandle ??
+                    prev.edges.find((old) => old.source === edge.source && old.target === edge.target)
+                      ?.sourceHandle,
+                  targetHandle:
+                    pendingConnection.targetHandle ??
+                    prev.edges.find((old) => old.source === edge.source && old.target === edge.target)
+                      ?.targetHandle,
+                }
+              : edge
+          );
           return { ...prev, rules5, edges };
         });
       },
@@ -937,7 +1279,11 @@ export const useTuringStore = create<TuringStoreState>()(
       updateFiveTupleRule: (id, partial) => {
         get().updateActiveProject((prev) => {
           const rules5 = prev.rules5.map((r) => (r.id === id ? { ...r, ...partial } : r));
-          const edges = buildEdgesFromRules(rules5, '5-tuple');
+          const edges = assignNearestEdgeHandles(
+            prev.nodes,
+            buildEdgesFromRules(rules5, '5-tuple'),
+            prev.edges
+          );
           return { ...prev, rules5, edges };
         });
       },
@@ -945,7 +1291,11 @@ export const useTuringStore = create<TuringStoreState>()(
       deleteFiveTupleRule: (id) => {
         get().updateActiveProject((prev) => {
           const rules5 = prev.rules5.filter((r) => r.id !== id);
-          const edges = buildEdgesFromRules(rules5, '5-tuple');
+          const edges = assignNearestEdgeHandles(
+            prev.nodes,
+            buildEdgesFromRules(rules5, '5-tuple'),
+            prev.edges
+          );
           return { ...prev, rules5, edges };
         });
       },
@@ -957,7 +1307,27 @@ export const useTuringStore = create<TuringStoreState>()(
         };
         get().updateActiveProject((prev) => {
           const rules4 = [...prev.rules4, newRule];
-          const edges = buildEdgesFromRules(rules4, '4-tuple', prev.subMode);
+          const pendingConnection = get().ruleModalData;
+          const edges = assignNearestEdgeHandles(
+            prev.nodes,
+            buildEdgesFromRules(rules4, '4-tuple', prev.subMode),
+            prev.edges
+          ).map((edge) =>
+            pendingConnection?.sourceNodeId === edge.source &&
+            pendingConnection?.targetNodeId === edge.target
+              ? {
+                  ...edge,
+                  sourceHandle:
+                    pendingConnection.sourceHandle ??
+                    prev.edges.find((old) => old.source === edge.source && old.target === edge.target)
+                      ?.sourceHandle,
+                  targetHandle:
+                    pendingConnection.targetHandle ??
+                    prev.edges.find((old) => old.source === edge.source && old.target === edge.target)
+                      ?.targetHandle,
+                }
+              : edge
+          );
           return { ...prev, rules4, edges };
         });
       },
@@ -965,7 +1335,11 @@ export const useTuringStore = create<TuringStoreState>()(
       updateFourTupleRule: (id, partial) => {
         get().updateActiveProject((prev) => {
           const rules4 = prev.rules4.map((r) => (r.id === id ? { ...r, ...partial } : r));
-          const edges = buildEdgesFromRules(rules4, '4-tuple', prev.subMode);
+          const edges = assignNearestEdgeHandles(
+            prev.nodes,
+            buildEdgesFromRules(rules4, '4-tuple', prev.subMode),
+            prev.edges
+          );
           return { ...prev, rules4, edges };
         });
       },
@@ -1000,7 +1374,11 @@ export const useTuringStore = create<TuringStoreState>()(
           }
 
           const rules4 = prev.rules4.filter((r) => r.id !== id);
-          const edges = buildEdgesFromRules(rules4, '4-tuple', prev.subMode);
+          const edges = assignNearestEdgeHandles(
+            prev.nodes,
+            buildEdgesFromRules(rules4, '4-tuple', prev.subMode),
+            prev.edges
+          );
           return { ...prev, rules4, edges };
         });
       },
@@ -1299,6 +1677,23 @@ export function handleDebuggerKeyboardShortcut(
     e.preventDefault();
     store.toggleRunning();
     return true;
+  }
+
+  // Delete / Backspace: remove the selected node or edge
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (store.selectedNodeId) {
+      e.preventDefault();
+      store.deleteNode(store.selectedNodeId);
+      store.setSelectedNodeId(null);
+      store.setSelectedEdgeId(null);
+      return true;
+    }
+    if (store.selectedEdgeId) {
+      e.preventDefault();
+      store.onEdgesChange([{ type: 'remove', id: store.selectedEdgeId }]);
+      store.setSelectedEdgeId(null);
+      return true;
+    }
   }
 
   // Escape: Reset execution
