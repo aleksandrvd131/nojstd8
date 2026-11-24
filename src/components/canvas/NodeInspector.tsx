@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTuringStore } from '../../store/useTuringStore';
 import { StateNodeType, OperationalNodeType, StateNodeData, OperationNodeData } from '../../types/turing';
 import {
   X,
   Trash2,
   Sliders,
+  GripHorizontal,
 } from 'lucide-react';
 
 export const NodeInspector: React.FC = () => {
@@ -13,6 +14,9 @@ export const NodeInspector: React.FC = () => {
   const updateNodeData = useTuringStore((s) => s.updateNodeData);
   const deleteNode = useTuringStore((s) => s.deleteNode);
   const getActiveProject = useTuringStore((s) => s.getActiveProject);
+
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
 
   const labelInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,11 +54,50 @@ export const NodeInspector: React.FC = () => {
     setSelectedNodeId(null);
   };
 
+  const handleHeaderMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button, input, select')) return;
+    const currentX = position ? position.x : 0;
+    const currentY = position ? position.y : 0;
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      posX: currentX,
+      posY: currentY,
+    };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!dragRef.current) return;
+      const dx = moveEvent.clientX - dragRef.current.startX;
+      const dy = moveEvent.clientY - dragRef.current.startY;
+      setPosition({
+        x: dragRef.current.posX + dx,
+        y: dragRef.current.posY + dy,
+      });
+    };
+
+    const handleMouseUp = () => {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
   return (
-    <div className="absolute top-14 right-3 z-20 w-76 max-w-[calc(100%-1.5rem)] rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg p-3.5 text-xs animate-in slide-in-from-top-1 duration-150">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-2.5 border-b border-zinc-200 dark:border-zinc-800">
+    <div
+      style={position ? { transform: `translate(${position.x}px, ${position.y}px)` } : undefined}
+      className="absolute top-14 right-3 z-20 w-76 max-w-[calc(100%-1.5rem)] rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg p-3.5 text-xs animate-in slide-in-from-top-1 duration-150"
+    >
+      {/* Draggable Header */}
+      <div
+        onMouseDown={handleHeaderMouseDown}
+        className="flex items-center justify-between pb-2.5 border-b border-zinc-200 dark:border-zinc-800 cursor-move select-none"
+        title="Зажмите и перетащите для перемещения окна"
+      >
         <div className="flex items-center gap-2">
+          <GripHorizontal className="w-3.5 h-3.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200" />
           <Sliders className="w-3.5 h-3.5 text-zinc-500" />
           <div>
             <h4 className="font-semibold text-zinc-900 dark:text-zinc-100 leading-tight">

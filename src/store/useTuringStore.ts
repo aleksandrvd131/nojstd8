@@ -835,14 +835,46 @@ export const useTuringStore = create<TuringStoreState>()(
           idx++;
           newId = type === 'halt' ? `q_halt_${idx}` : `q${idx}`;
         }
-        const count = project.nodes.length;
+
+        // Smart non-overlapping position
+        const existingNodes = project.nodes;
+        let pos = { x: 120, y: 150 };
+        if (existingNodes.length > 0) {
+          const lastNode = existingNodes[existingNodes.length - 1];
+          const maxX = Math.max(...existingNodes.map((n) => n.position.x));
+          const minX = Math.min(...existingNodes.map((n) => n.position.x));
+
+          let candidateX = lastNode ? lastNode.position.x + 200 : maxX + 200;
+          let candidateY = lastNode ? lastNode.position.y : 150;
+
+          if (candidateX > 850) {
+            candidateX = Math.max(100, minX);
+            const maxY = Math.max(...existingNodes.map((n) => n.position.y));
+            candidateY = maxY + 140;
+          }
+
+          const isColliding = (x: number, y: number) => {
+            return existingNodes.some(
+              (n) => Math.abs(n.position.x - x) < 170 && Math.abs(n.position.y - y) < 90
+            );
+          };
+
+          let attempts = 0;
+          while (isColliding(candidateX, candidateY) && attempts < 50) {
+            candidateX += 190;
+            if (candidateX > 900) {
+              candidateX = Math.max(100, minX);
+              candidateY += 130;
+            }
+            attempts++;
+          }
+          pos = { x: Math.round(candidateX), y: Math.round(candidateY) };
+        }
+
         const newNode: TuringNode = {
           id: newId,
           type: 'stateNode',
-          position: {
-            x: 100 + (count % 4) * 180,
-            y: 100 + Math.floor(count / 4) * 140,
-          },
+          position: pos,
           data: {
             label: label || newId,
             stateType: type,
@@ -864,13 +896,46 @@ export const useTuringStore = create<TuringStoreState>()(
           count++;
           newId = `op_${opType.toLowerCase()}_${count}`;
         }
+
+        // Smart non-overlapping position
+        const existingNodes = project.nodes;
+        let pos = { x: 120, y: 150 };
+        if (existingNodes.length > 0) {
+          const lastNode = existingNodes[existingNodes.length - 1];
+          const maxX = Math.max(...existingNodes.map((n) => n.position.x));
+          const minX = Math.min(...existingNodes.map((n) => n.position.x));
+
+          let candidateX = lastNode ? lastNode.position.x + 200 : maxX + 200;
+          let candidateY = lastNode ? lastNode.position.y : 150;
+
+          if (candidateX > 850) {
+            candidateX = Math.max(100, minX);
+            const maxY = Math.max(...existingNodes.map((n) => n.position.y));
+            candidateY = maxY + 140;
+          }
+
+          const isColliding = (x: number, y: number) => {
+            return existingNodes.some(
+              (n) => Math.abs(n.position.x - x) < 170 && Math.abs(n.position.y - y) < 90
+            );
+          };
+
+          let attempts = 0;
+          while (isColliding(candidateX, candidateY) && attempts < 50) {
+            candidateX += 190;
+            if (candidateX > 900) {
+              candidateX = Math.max(100, minX);
+              candidateY += 130;
+            }
+            attempts++;
+          }
+          pos = { x: Math.round(candidateX), y: Math.round(candidateY) };
+        }
+
         const newNode: TuringNode = {
           id: newId,
           type: 'operationNode',
-          position: {
-            x: 100 + (count % 4) * 180,
-            y: 100 + Math.floor(count / 4) * 140,
-          },
+          position: pos,
           data: {
             label: label || opType,
             opType,

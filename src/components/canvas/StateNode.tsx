@@ -19,7 +19,7 @@ export const StateNode = memo(({ id, data, selected }: NodeProps) => {
   return (
     <div
       className={clsx(
-        'relative group min-w-[110px] rounded-md px-3 py-2 select-none transition-colors border',
+        'relative group min-w-[110px] rounded-md px-3 py-2 select-none transition-colors border cursor-grab active:cursor-grabbing',
         // Background and border
         isCurrent
           ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 dark:border-amber-400 shadow-xs ring-1 ring-amber-500/40'
