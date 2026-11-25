@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useTuringStore } from '../../store/useTuringStore';
+import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import {
   Play,
   Plus,
@@ -7,25 +7,23 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  ArrowRight,
   ExternalLink,
 } from 'lucide-react';
 
 export const BatchTestRunner: React.FC = () => {
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
   const addTestCase = useTuringStore((s) => s.addTestCase);
-  const updateTestCase = useTuringStore((s) => s.updateTestCase);
   const deleteTestCase = useTuringStore((s) => s.deleteTestCase);
   const runAllTestCases = useTuringStore((s) => s.runAllTestCases);
   const runSingleTestCase = useTuringStore((s) => s.runSingleTestCase);
   const setTapeString = useTuringStore((s) => s.setTapeString);
 
-  const project = getActiveProject();
+  const project = useActiveProject();
   const testCases = project.testCases;
 
   const [newName, setNewName] = useState('');
   const [newInput, setNewInput] = useState('');
   const [newExpected, setNewExpected] = useState('');
+  const [newExpectedHalt, setNewExpectedHalt] = useState<'any' | 'accept' | 'reject'>('any');
 
   const handleAddTest = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,11 +33,13 @@ export const BatchTestRunner: React.FC = () => {
       name: newName.trim() || `Тест ${testCases.length + 1}`,
       inputTape: newInput.trim(),
       expectedTape: newExpected.trim() || undefined,
+      expectedHalt: newExpectedHalt !== 'any' ? newExpectedHalt : undefined,
     });
 
     setNewName('');
     setNewInput('');
     setNewExpected('');
+    setNewExpectedHalt('any');
   };
 
   const handleLoadToMainTape = (input: string) => {
@@ -149,9 +149,16 @@ export const BatchTestRunner: React.FC = () => {
 
                 <div>
                   <span className="text-zinc-400 text-[10px] block font-sans">Ожидается:</span>
-                  <span className="text-zinc-800 dark:text-zinc-200 font-bold bg-zinc-100 dark:bg-zinc-700/60 px-1.5 py-0.5 rounded">
-                    {tc.expectedTape !== undefined ? `"${tc.expectedTape}"` : 'любой'}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-zinc-800 dark:text-zinc-200 font-bold bg-zinc-100 dark:bg-zinc-700/60 px-1.5 py-0.5 rounded">
+                      {tc.expectedTape !== undefined ? `"${tc.expectedTape}"` : 'любой'}
+                    </span>
+                    {tc.expectedHalt && tc.expectedHalt !== 'any' && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 font-semibold">
+                        {tc.expectedHalt}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -193,7 +200,7 @@ export const BatchTestRunner: React.FC = () => {
         <span className="font-semibold text-zinc-700 dark:text-zinc-300 block text-[11px]">
           Добавить тестовый пример
         </span>
-        <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+        <div className="grid grid-cols-2 gap-2 font-mono text-xs">
           <input
             type="text"
             placeholder="Название (опц.)"
@@ -201,6 +208,16 @@ export const BatchTestRunner: React.FC = () => {
             onChange={(e) => setNewName(e.target.value)}
             className="px-2 py-1.5 rounded bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700"
           />
+          <select
+            value={newExpectedHalt}
+            onChange={(e) => setNewExpectedHalt(e.target.value as 'any' | 'accept' | 'reject')}
+            aria-label="Ожидаемый останов"
+            className="px-2 py-1.5 rounded bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+          >
+            <option value="any">Останов: любой</option>
+            <option value="accept">Останов: accept</option>
+            <option value="reject">Останов: reject</option>
+          </select>
           <input
             type="text"
             placeholder="Вход (Input)"

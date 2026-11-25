@@ -11,6 +11,7 @@ import { DebuggerControls } from './components/tape/DebuggerControls';
 import { SessionManagerDrawer } from './components/sidebar/SessionManagerDrawer';
 import { AlphabetBuilder } from './components/sidebar/AlphabetBuilder';
 import { ExportModal } from './components/navbar/ExportModal';
+import { ConfirmModal } from './components/navbar/ConfirmModal';
 
 import {
   Table2,
@@ -68,7 +69,7 @@ export const App: React.FC = () => {
 
         {/* 3. Right Inspector & Diagnostics Panel */}
         {isInspectorOpen && (
-          <aside className="w-96 lg:w-[420px] h-full flex flex-col bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 shadow-sm z-10 animate-in slide-in-from-right-2 duration-150">
+          <aside className="w-96 lg:w-[420px] h-full flex flex-col bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 shadow-sm z-10">
             {/* Inspector Tab Bar */}
             <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-2 text-xs font-medium">
               <button
@@ -145,6 +146,7 @@ export const App: React.FC = () => {
       <SessionManagerDrawer />
       <AlphabetBuilder />
       <ExportModal />
+      <ConfirmModal />
     </div>
   );
 };

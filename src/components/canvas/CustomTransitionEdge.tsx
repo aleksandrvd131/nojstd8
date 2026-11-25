@@ -1,8 +1,9 @@
-import React, { memo, useState, useRef } from 'react';
+import React, { memo, useState, useRef, useEffect } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
   EdgeProps,
+  Position,
   getBezierPath,
 } from '@xyflow/react';
 import { CustomEdgeData, EdgeRuleItem } from '../../types/turing';
@@ -31,6 +32,7 @@ export const CustomTransitionEdge = memo(
     const deleteFiveTupleRule = useTuringStore((s) => s.deleteFiveTupleRule);
     const deleteFourTupleRule = useTuringStore((s) => s.deleteFourTupleRule);
     const deleteEdgeRule = useTuringStore((s) => s.deleteEdgeRule);
+    const updateEdgeLabelOffset = useTuringStore((s) => s.updateEdgeLabelOffset);
     const mode = edgeData?.mode || '5-tuple';
     const subMode = edgeData?.subMode;
     const isActive = runtimeActiveEdgeId === id;
@@ -43,14 +45,33 @@ export const CustomTransitionEdge = memo(
     let labelY = 0;
 
     if (isSelfLoop) {
-      // Loop curve above the node
       const loopHeight = 70;
       const loopWidth = 40;
-      edgePath = `M ${sourceX - 12} ${sourceY} C ${sourceX - loopWidth} ${
-        sourceY - loopHeight
-      }, ${sourceX + loopWidth} ${sourceY - loopHeight}, ${sourceX + 12} ${sourceY}`;
-      labelX = sourceX;
-      labelY = sourceY - loopHeight + 8;
+      if (sourcePosition === Position.Bottom) {
+        edgePath = `M ${sourceX - 12} ${sourceY} C ${sourceX - loopWidth} ${
+          sourceY + loopHeight
+        }, ${sourceX + loopWidth} ${sourceY + loopHeight}, ${sourceX + 12} ${sourceY}`;
+        labelX = sourceX;
+        labelY = sourceY + loopHeight - 8;
+      } else if (sourcePosition === Position.Left) {
+        edgePath = `M ${sourceX} ${sourceY - 12} C ${sourceX - loopHeight} ${
+          sourceY - loopWidth
+        }, ${sourceX - loopHeight} ${sourceY + loopWidth}, ${sourceX} ${sourceY + 12}`;
+        labelX = sourceX - loopHeight + 8;
+        labelY = sourceY;
+      } else if (sourcePosition === Position.Right) {
+        edgePath = `M ${sourceX} ${sourceY - 12} C ${sourceX + loopHeight} ${
+          sourceY - loopWidth
+        }, ${sourceX + loopHeight} ${sourceY + loopWidth}, ${sourceX} ${sourceY + 12}`;
+        labelX = sourceX + loopHeight - 8;
+        labelY = sourceY;
+      } else {
+        edgePath = `M ${sourceX - 12} ${sourceY} C ${sourceX - loopWidth} ${
+          sourceY - loopHeight
+        }, ${sourceX + loopWidth} ${sourceY - loopHeight}, ${sourceX + 12} ${sourceY}`;
+        labelX = sourceX;
+        labelY = sourceY - loopHeight + 8;
+      }
     } else if (isBiDirectional) {
       // Offset curved path for bi-directional transitions
       const dx = targetX - sourceX;
@@ -115,7 +136,15 @@ export const CustomTransitionEdge = memo(
       }
     };
 
-    const [offset, setOffset] = useState({ x: 0, y: 0 });
+    const savedOffset = edgeData?.labelOffset;
+    const [offset, setOffset] = useState(savedOffset ?? { x: 0, y: 0 });
+    const latestOffsetRef = useRef(offset);
+    useEffect(() => {
+      const next = savedOffset ?? { x: 0, y: 0 };
+      setOffset(next);
+      latestOffsetRef.current = next;
+    }, [savedOffset?.x, savedOffset?.y]);
+
     const dragRef = useRef<{
       startX: number;
       startY: number;
@@ -136,16 +165,19 @@ export const CustomTransitionEdge = memo(
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         if (!dragRef.current) return;
-        setOffset({
+        const nextOffset = {
           x: dragRef.current.originX + (moveEvent.clientX - dragRef.current.startX),
           y: dragRef.current.originY + (moveEvent.clientY - dragRef.current.startY),
-        });
+        };
+        latestOffsetRef.current = nextOffset;
+        setOffset(nextOffset);
       };
 
       const onMouseUp = () => {
         dragRef.current = null;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
+        updateEdgeLabelOffset(id, latestOffsetRef.current);
       };
 
       window.addEventListener('mousemove', onMouseMove);
@@ -182,7 +214,7 @@ export const CustomTransitionEdge = memo(
                 transform: `translate(-50%, -50%) translate(${labelX + offset.x}px,${labelY + offset.y}px)`,
                 pointerEvents: 'all',
               }}
-              className="flex flex-col items-center gap-1 z-20 animate-in fade-in zoom-in-95 duration-100"
+              className="flex flex-col items-center gap-1 z-20"
             >
               <div
                 onMouseDown={handleDragStart}
@@ -202,7 +234,14 @@ export const CustomTransitionEdge = memo(
                     const move = rule.move ?? 'N';
                     text = `${rule.readSymbol} → ${write}, ${move}`;
                   } else if (subMode === 'operational') {
-                    text = rule.isWildcard ? '*' : rule.readSymbol;
+                    const isWild =
+                      rule.isWildcard === true ||
+                      (rule.isWildcard === undefined && !rule.isComplement && rule.readSymbol === '*');
+                    text = isWild
+                      ? '*'
+                      : rule.isComplement
+                      ? `¬${rule.readSymbol}`
+                      : rule.readSymbol;
                   } else {
                     text = `${rule.readSymbol} : ${rule.command || 'N'}`;
                   }

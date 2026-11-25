@@ -80,6 +80,7 @@ export interface CustomEdgeData extends Record<string, unknown> {
   isBiDirectional?: boolean;
   offsetDirection?: 1 | -1;
   isActive?: boolean;
+  labelOffset?: { x: number; y: number };
 }
 
 export type TuringEdge = Edge<CustomEdgeData>;

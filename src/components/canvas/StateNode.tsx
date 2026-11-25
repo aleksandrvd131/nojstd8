@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { StateNodeData } from '../../types/turing';
 import { useTuringStore } from '../../store/useTuringStore';
@@ -22,10 +22,10 @@ export const StateNode = memo(({ id, data, selected }: NodeProps) => {
         'relative group min-w-[110px] rounded-md px-3 py-2 select-none transition-colors border cursor-grab active:cursor-grabbing',
         // Background and border
         isCurrent
-          ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 dark:border-amber-400 shadow-xs ring-1 ring-amber-500/40'
+          ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 dark:border-amber-400 shadow-sm ring-1 ring-amber-500/40'
           : selected
           ? 'bg-sky-50/50 dark:bg-sky-950/30 border-sky-500 ring-1 ring-sky-500/30'
-          : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 shadow-xs',
+          : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 shadow-sm',
         // Classical Automata theory double-border for halt/accept/reject states
         isFinal && 'outline outline-1 outline-offset-2 outline-zinc-400 dark:outline-zinc-600'
       )}
@@ -35,25 +35,25 @@ export const StateNode = memo(({ id, data, selected }: NodeProps) => {
         type="target"
         position={Position.Top}
         id="top"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="target"
         position={Position.Left}
         id="left"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
       />
 
       {/* Header with state indicator */}
@@ -95,7 +95,7 @@ export const StateNode = memo(({ id, data, selected }: NodeProps) => {
         {/* State type badge */}
         <span
           className={clsx(
-            'text-[9px] uppercase font-mono font-medium px-1 py-0.2 rounded border flex-shrink-0',
+            'text-[9px] uppercase font-mono font-medium px-1 py-0.5 rounded border flex-shrink-0',
             isInitial && 'border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10',
             isHalt && 'border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10',
             isAccept && 'border-teal-500/30 text-teal-600 dark:text-teal-400 bg-teal-500/10',
@@ -115,7 +115,7 @@ export const StateNode = memo(({ id, data, selected }: NodeProps) => {
 
       {/* Discrete active execution badge */}
       {isCurrent && (
-        <span className="absolute -top-2 right-2 px-1 py-0.2 rounded bg-amber-500 text-white font-mono text-[8px] font-bold tracking-wider shadow-xs">
+        <span className="absolute -top-2 right-2 px-1 py-0.5 rounded bg-amber-500 text-white font-mono text-[8px] font-bold tracking-wider shadow-sm">
           ACT
         </span>
       )}

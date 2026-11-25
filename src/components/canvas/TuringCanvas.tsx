@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -6,13 +6,14 @@ import {
   MiniMap,
   MarkerType,
   BackgroundVariant,
+  ConnectionMode,
   useReactFlow,
   ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { useTuringStore } from '../../store/useTuringStore';
-import { TuringNode, TuringEdge } from '../../types/turing';
+import { TuringNode, TuringEdge, StateNodeData } from '../../types/turing';
 import { StateNode } from './StateNode';
 import { OperationNode } from './OperationNode';
 import { CustomTransitionEdge } from './CustomTransitionEdge';
@@ -29,6 +30,8 @@ import {
   ChevronsRight,
   PenTool,
   Square,
+  Undo2,
+  Redo2,
 } from 'lucide-react';
 
 const nodeTypes = {
@@ -54,9 +57,9 @@ const EMPTY_NODES: TuringNode[] = [];
 const EMPTY_EDGES: TuringEdge[] = [];
 const defaultFitViewOptions = { padding: 0.2 };
 
-const miniMapNodeColor = (n: any) => {
+const miniMapNodeColor = (n: TuringNode) => {
   if (n.type === 'stateNode') {
-    const data = n.data as any;
+    const data = n.data as StateNodeData;
     if (data?.stateType === 'initial') return '#10b981';
     if (data?.stateType === 'halt') return '#f59e0b';
     return '#71717a';
@@ -76,6 +79,10 @@ const TuringCanvasInner: React.FC = () => {
   const addStateNode = useTuringStore((s) => s.addStateNode);
   const addOperationNode = useTuringStore((s) => s.addOperationNode);
   const applyAutoLayout = useTuringStore((s) => s.applyAutoLayout);
+  const undoEditor = useTuringStore((s) => s.undoEditor);
+  const redoEditor = useTuringStore((s) => s.redoEditor);
+  const canUndoEditor = useTuringStore((s) => s.editorUndoStack.length > 0);
+  const canRedoEditor = useTuringStore((s) => s.editorRedoStack.length > 0);
 
   const nodes = useTuringStore((s) => {
     const p = s.projects.find((proj) => proj.id === s.activeProjectId);
@@ -118,7 +125,7 @@ const TuringCanvasInner: React.FC = () => {
   return (
     <div className="relative w-full h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
       {/* Precision Floating Action Bar */}
-      <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 p-1 rounded-md bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 shadow-xs text-xs">
+      <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 p-1 rounded-md bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 shadow-sm text-xs">
         {mode === '5-tuple' || subMode === 'state-graph' ? (
           <>
             <button
@@ -221,6 +228,29 @@ const TuringCanvasInner: React.FC = () => {
           <LayoutGrid className="w-3.5 h-3.5 text-zinc-500" />
           <span>Раскладка</span>
         </button>
+
+        <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-0.5" />
+
+        <button
+          type="button"
+          onClick={undoEditor}
+          disabled={!canUndoEditor}
+          className="p-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          title="Отменить изменение графа (Ctrl+Z)"
+          aria-label="Отменить изменение графа"
+        >
+          <Undo2 className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={redoEditor}
+          disabled={!canRedoEditor}
+          className="p-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          title="Повторить изменение графа (Ctrl+Shift+Z)"
+          aria-label="Повторить изменение графа"
+        >
+          <Redo2 className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       <ReactFlow
@@ -232,8 +262,10 @@ const TuringCanvasInner: React.FC = () => {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
+        deleteKeyCode="Backspace"
         nodesDraggable={true}
         nodesConnectable={true}
+        connectionMode={ConnectionMode.Loose}
         elementsSelectable={true}
         onNodeClick={(_, node) => {
           setSelectedNodeId(node.id);
@@ -261,12 +293,12 @@ const TuringCanvasInner: React.FC = () => {
         />
         <Controls
           showInteractive={false}
-          className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-xs !rounded-md overflow-hidden"
+          className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-sm !rounded-md overflow-hidden"
         />
         <MiniMap
           nodeColor={miniMapNodeColor}
           maskColor={theme === 'dark' ? 'rgba(9, 9, 11, 0.75)' : 'rgba(244, 244, 245, 0.75)'}
-          className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-xs !rounded-md overflow-hidden"
+          className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-sm !rounded-md overflow-hidden"
         />
       </ReactFlow>
 

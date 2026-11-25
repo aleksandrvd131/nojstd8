@@ -309,7 +309,7 @@ export const DEMO_PROJECT_2: ProjectSession = {
 export const DEMO_PROJECT_3: ProjectSession = {
   id: 'demo-project-vtm-copy',
   name: 'Копирование слова через # (VTM Диаграмма)',
-  description: 'Академическая операционная диаграмма Тьюринга в стандарте VTM. Узлами выступают элементарные операции машины (сдвиги, запись и поиск), а дуги задают условия ветвления.',
+  description: 'Академическая операционная диаграмма Тьюринга в стандарте VTM. Циклически копирует унарное слово из единиц слева от # вправо от # с маркировкой обработанных символов.',
   mode: '4-tuple',
   subMode: 'operational',
   alphabet: {
@@ -320,7 +320,7 @@ export const DEMO_PROJECT_3: ProjectSession = {
     {
       id: 'vtm_start',
       type: 'operationNode',
-      position: { x: 80, y: 150 },
+      position: { x: 60, y: 150 },
       data: {
         label: 'START',
         opType: 'START',
@@ -328,19 +328,9 @@ export const DEMO_PROJECT_3: ProjectSession = {
       },
     },
     {
-      id: 'vtm_check_char',
-      type: 'operationNode',
-      position: { x: 260, y: 150 },
-      data: {
-        label: 'Проверка [a]',
-        opType: 'SHIFT_R',
-        description: 'Считывание символа исходного слова',
-      },
-    },
-    {
       id: 'vtm_mark_x',
       type: 'operationNode',
-      position: { x: 450, y: 100 },
+      position: { x: 260, y: 90 },
       data: {
         label: 'Запись [*]',
         opType: 'WRITE_SYM',
@@ -351,7 +341,7 @@ export const DEMO_PROJECT_3: ProjectSession = {
     {
       id: 'vtm_search_right',
       type: 'operationNode',
-      position: { x: 640, y: 100 },
+      position: { x: 460, y: 90 },
       data: {
         label: 'Поиск R (_)',
         opType: 'SEARCH_R',
@@ -361,7 +351,7 @@ export const DEMO_PROJECT_3: ProjectSession = {
     {
       id: 'vtm_write_copy',
       type: 'operationNode',
-      position: { x: 830, y: 100 },
+      position: { x: 660, y: 90 },
       data: {
         label: 'Копия [1]',
         opType: 'WRITE_SYM',
@@ -372,17 +362,27 @@ export const DEMO_PROJECT_3: ProjectSession = {
     {
       id: 'vtm_return_left',
       type: 'operationNode',
-      position: { x: 640, y: 260 },
+      position: { x: 660, y: 240 },
       data: {
-        label: 'Поиск L (*)',
+        label: 'Поиск L (_)',
         opType: 'SEARCH_L',
-        description: 'Возврат влево к маркированной позиции',
+        description: 'Возврат влево до левого пробела перед словом',
+      },
+    },
+    {
+      id: 'vtm_find_mark',
+      type: 'operationNode',
+      position: { x: 460, y: 240 },
+      data: {
+        label: 'К маркеру [*]',
+        opType: 'SHIFT_R',
+        description: 'Поиск маркера * слева направо',
       },
     },
     {
       id: 'vtm_restore_char',
       type: 'operationNode',
-      position: { x: 450, y: 260 },
+      position: { x: 260, y: 240 },
       data: {
         label: 'Восст. [1]',
         opType: 'WRITE_SYM',
@@ -391,9 +391,19 @@ export const DEMO_PROJECT_3: ProjectSession = {
       },
     },
     {
+      id: 'vtm_check_char',
+      type: 'operationNode',
+      position: { x: 60, y: 310 },
+      data: {
+        label: 'След. [a]',
+        opType: 'SHIFT_R',
+        description: 'Переход к следующему символу исходного слова',
+      },
+    },
+    {
       id: 'vtm_finish',
       type: 'operationNode',
-      position: { x: 260, y: 350 },
+      position: { x: 260, y: 390 },
       data: {
         label: 'FINISH',
         opType: 'FINISH',
@@ -405,37 +415,25 @@ export const DEMO_PROJECT_3: ProjectSession = {
     {
       id: 'e_vtm_1',
       source: 'vtm_start',
-      target: 'vtm_check_char',
-      type: 'customTransition',
-      data: {
-        mode: '4-tuple',
-        subMode: 'operational',
-        rules: [{ id: 'r1', readSymbol: '*', isWildcard: true }],
-      },
-    },
-    {
-      id: 'e_vtm_2',
-      source: 'vtm_check_char',
       target: 'vtm_mark_x',
       type: 'customTransition',
       data: {
         mode: '4-tuple',
         subMode: 'operational',
-        rules: [{ id: 'r2', readSymbol: '1' }],
+        rules: [{ id: 'r1', readSymbol: '1' }],
       },
     },
     {
-      id: 'e_vtm_3',
-      source: 'vtm_check_char',
+      id: 'e_vtm_start_finish',
+      source: 'vtm_start',
       target: 'vtm_finish',
       type: 'customTransition',
       data: {
         mode: '4-tuple',
         subMode: 'operational',
         rules: [
-          { id: 'r3', readSymbol: '_' },
-          { id: 'r3_hash', readSymbol: '#' },
-          { id: 'r3_wildcard', readSymbol: '*', isWildcard: true },
+          { id: 'r1_hash', readSymbol: '#' },
+          { id: 'r1_blank', readSymbol: '_' },
         ],
       },
     },
@@ -475,23 +473,71 @@ export const DEMO_PROJECT_3: ProjectSession = {
     {
       id: 'e_vtm_7',
       source: 'vtm_return_left',
+      target: 'vtm_find_mark',
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [{ id: 'r7', readSymbol: '_', isWildcard: true }],
+      },
+    },
+    {
+      id: 'e_vtm_find_loop',
+      source: 'vtm_find_mark',
+      target: 'vtm_find_mark',
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [{ id: 'r7_loop', readSymbol: '*', isComplement: true, isWildcard: false }],
+      },
+    },
+    {
+      id: 'e_vtm_find_hit',
+      source: 'vtm_find_mark',
       target: 'vtm_restore_char',
       type: 'customTransition',
       data: {
         mode: '4-tuple',
         subMode: 'operational',
-        rules: [{ id: 'r7', readSymbol: '*' }],
+        rules: [{ id: 'r7_hit', readSymbol: '*', isWildcard: false }],
       },
     },
     {
       id: 'e_vtm_8',
       source: 'vtm_restore_char',
-      target: 'vtm_finish',
+      target: 'vtm_check_char',
       type: 'customTransition',
       data: {
         mode: '4-tuple',
         subMode: 'operational',
         rules: [{ id: 'r8', readSymbol: '*', isWildcard: true }],
+      },
+    },
+    {
+      id: 'e_vtm_2',
+      source: 'vtm_check_char',
+      target: 'vtm_mark_x',
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [{ id: 'r2', readSymbol: '1' }],
+      },
+    },
+    {
+      id: 'e_vtm_3',
+      source: 'vtm_check_char',
+      target: 'vtm_finish',
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [
+          { id: 'r3', readSymbol: '_' },
+          { id: 'r3_hash', readSymbol: '#' },
+          { id: 'r3_wildcard', readSymbol: '*', isWildcard: true },
+        ],
       },
     },
   ],
@@ -500,7 +546,8 @@ export const DEMO_PROJECT_3: ProjectSession = {
   subMachines: [],
   initialTape: {
     0: '1',
-    1: '#',
+    1: '1',
+    2: '#',
   },
   initialHeadPosition: 0,
   testCases: [
@@ -508,6 +555,14 @@ export const DEMO_PROJECT_3: ProjectSession = {
       id: 'tc_vtm_1',
       name: 'Копирование единицы',
       inputTape: '1#',
+      expectedTape: '1#1',
+      status: 'idle',
+    },
+    {
+      id: 'tc_vtm_2',
+      name: 'Копирование слова 11#',
+      inputTape: '11#',
+      expectedTape: '11#11',
       status: 'idle',
     },
   ],

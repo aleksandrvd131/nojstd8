@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useTuringStore } from '../../store/useTuringStore';
+import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import { MoveDirection } from '../../types/turing';
 import { Plus, Trash2, ArrowRight, Table2 } from 'lucide-react';
 
 export const TupleTableEditor: React.FC = () => {
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
   const runtime = useTuringStore((s) => s.runtime);
 
   const addFiveTupleRule = useTuringStore((s) => s.addFiveTupleRule);
@@ -15,7 +14,7 @@ export const TupleTableEditor: React.FC = () => {
   const updateFourTupleRule = useTuringStore((s) => s.updateFourTupleRule);
   const deleteFourTupleRule = useTuringStore((s) => s.deleteFourTupleRule);
 
-  const project = getActiveProject();
+  const project = useActiveProject();
   const { mode, subMode, rules5, rules4, alphabet, nodes } = project;
   const allSymbols = [...alphabet.symbols, alphabet.blankSymbol];
   const stateLabels = nodes.map((n) => n.id);

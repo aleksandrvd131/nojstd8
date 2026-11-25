@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useTuringStore } from '../../store/useTuringStore';
+import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import {
   RotateCcw,
   Save,
@@ -7,18 +7,19 @@ import {
   ChevronLeft,
   ChevronRight,
   Crosshair,
+  Eraser,
 } from 'lucide-react';
 
 export const InfiniteTapeDock: React.FC = () => {
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
   const runtime = useTuringStore((s) => s.runtime);
   const setTapeCell = useTuringStore((s) => s.setTapeCell);
   const setTapeString = useTuringStore((s) => s.setTapeString);
+  const clearTape = useTuringStore((s) => s.clearTape);
   const setHeadPosition = useTuringStore((s) => s.setHeadPosition);
   const saveTapeToInitialBuffer = useTuringStore((s) => s.saveTapeToInitialBuffer);
   const resetTapeFromInitialBuffer = useTuringStore((s) => s.resetTapeFromInitialBuffer);
 
-  const project = getActiveProject();
+  const project = useActiveProject();
   const { blankSymbol, symbols } = project.alphabet;
   const allSymbols = [...symbols, blankSymbol];
 
@@ -101,6 +102,16 @@ export const InfiniteTapeDock: React.FC = () => {
             <span className="hidden sm:inline font-sans">Сброс ленты</span>
           </button>
 
+          <button
+            type="button"
+            onClick={clearTape}
+            className="p-1 rounded bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-500 hover:text-rose-500 border border-zinc-200 dark:border-zinc-700 transition-colors"
+            title="Очистить ленту"
+            aria-label="Очистить ленту"
+          >
+            <Eraser className="w-3.5 h-3.5" />
+          </button>
+
           <div className="flex items-center ml-1 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700">
             <button
               type="button"
@@ -110,6 +121,16 @@ export const InfiniteTapeDock: React.FC = () => {
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
+            {rangeOffset !== 0 && (
+              <button
+                type="button"
+                onClick={() => setRangeOffset(0)}
+                className="px-1.5 py-0.5 text-[10px] font-sans hover:bg-zinc-200 dark:hover:bg-zinc-700 text-amber-600 dark:text-amber-400 border-x border-zinc-200 dark:border-zinc-700 transition-colors"
+                title="Вернуть вид к головке"
+              >
+                К головке
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setRangeOffset((r) => r + 5)}
@@ -123,7 +144,15 @@ export const InfiniteTapeDock: React.FC = () => {
       </div>
 
       {/* CAD Precision Tape Strip */}
-      <div className="py-2.5 px-4 overflow-x-auto flex items-center justify-center gap-1 bg-zinc-100/60 dark:bg-zinc-950">
+      <div
+        onWheel={(e) => {
+          const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+          if (delta !== 0) {
+            setRangeOffset((r) => r + (delta > 0 ? 1 : -1));
+          }
+        }}
+        className="py-2.5 px-4 overflow-x-auto flex items-center justify-center gap-1 bg-zinc-100/60 dark:bg-zinc-950"
+      >
         {visibleCells.map((pos) => {
           const isHead = pos === head;
           const isVisited = runtime.visitedPositions.includes(pos);
@@ -148,7 +177,7 @@ export const InfiniteTapeDock: React.FC = () => {
                 }}
                 className={`relative w-9 h-11 rounded-sm flex items-center justify-center font-mono text-sm cursor-pointer transition-colors border select-none ${
                   isHead
-                    ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 text-amber-700 dark:text-amber-300 font-extrabold shadow-xs'
+                    ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 text-amber-700 dark:text-amber-300 font-extrabold shadow-sm'
                     : isVisited
                     ? 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 font-bold hover:border-zinc-400 dark:hover:border-zinc-500'
                     : 'bg-zinc-50/50 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-700'
@@ -161,6 +190,17 @@ export const InfiniteTapeDock: React.FC = () => {
                     onChange={(e) => {
                       setTapeCell(pos, e.target.value);
                       setEditingPos(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setEditingPos(null);
+                        return;
+                      }
+                      if (e.key.length === 1 && allSymbols.includes(e.key)) {
+                        e.preventDefault();
+                        setTapeCell(pos, e.key);
+                        setEditingPos(null);
+                      }
                     }}
                     onBlur={() => setEditingPos(null)}
                     autoFocus

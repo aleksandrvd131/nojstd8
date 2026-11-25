@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { OperationNodeData } from '../../types/turing';
 import { useTuringStore } from '../../store/useTuringStore';
@@ -19,7 +19,6 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
   const runtimeCurrentNodeId = useTuringStore((s) => s.runtime.currentNodeId);
   const isCurrent = runtimeCurrentNodeId === id;
 
-  const isStart = nodeData.opType === 'START';
   const isFinish = nodeData.opType === 'FINISH';
 
   const getOpBadge = () => {
@@ -97,10 +96,10 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
       className={clsx(
         'relative group min-w-[120px] rounded-md px-3 py-2 select-none transition-colors border cursor-grab active:cursor-grabbing',
         isCurrent
-          ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 dark:border-amber-400 shadow-xs ring-1 ring-amber-500/40'
+          ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 dark:border-amber-400 shadow-sm ring-1 ring-amber-500/40'
           : selected
           ? 'bg-sky-50/50 dark:bg-sky-950/30 border-sky-500 ring-1 ring-sky-500/30'
-          : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 shadow-xs',
+          : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 shadow-sm',
         isFinish && 'outline outline-1 outline-offset-2 outline-rose-500/50'
       )}
     >
@@ -109,25 +108,25 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
         type="target"
         position={Position.Top}
         id="top"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="right"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
       />
       <Handle
         type="target"
         position={Position.Left}
         id="left"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-xs transition-colors hover:!bg-sky-500"
+        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
       />
 
       <div className="flex items-center gap-2">
@@ -139,7 +138,7 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
             </span>
             <span
               className={clsx(
-                'font-mono text-[10px] font-bold px-1 py-0.2 rounded border',
+                'font-mono text-[10px] font-bold px-1 py-0.5 rounded border',
                 badge.color
               )}
             >
@@ -155,7 +154,7 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
 
       {/* Discrete active execution badge */}
       {isCurrent && (
-        <span className="absolute -top-2 right-2 px-1 py-0.2 rounded bg-amber-500 text-white font-mono text-[8px] font-bold tracking-wider shadow-xs">
+        <span className="absolute -top-2 right-2 px-1 py-0.5 rounded bg-amber-500 text-white font-mono text-[8px] font-bold tracking-wider shadow-sm">
           ACT
         </span>
       )}

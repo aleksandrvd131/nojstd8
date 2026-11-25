@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useTuringStore } from '../../store/useTuringStore';
+import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import {
   Cpu,
   FolderOpen,
@@ -13,19 +13,17 @@ import {
 } from 'lucide-react';
 
 export const HeaderNavbar: React.FC = () => {
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
   const theme = useTuringStore((s) => s.theme);
   const toggleTheme = useTuringStore((s) => s.toggleTheme);
   const setSessionDrawerOpen = useTuringStore((s) => s.setSessionDrawerOpen);
   const setAlphabetModalOpen = useTuringStore((s) => s.setAlphabetModalOpen);
   const setExportModalOpen = useTuringStore((s) => s.setExportModalOpen);
-  const setMode = useTuringStore((s) => s.setMode);
-  const setSubMode = useTuringStore((s) => s.setSubMode);
+  const switchMode = useTuringStore((s) => s.switchMode);
   const renameProject = useTuringStore((s) => s.renameProject);
   const updateProjectDescription = useTuringStore((s) => s.updateProjectDescription);
   const projects = useTuringStore((s) => s.projects);
 
-  const project = getActiveProject();
+  const project = useActiveProject();
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState(project.name);
@@ -119,7 +117,7 @@ export const HeaderNavbar: React.FC = () => {
             </button>
 
             {isDescriptionOpen && (
-              <div className="absolute top-8 left-0 w-80 p-3.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl z-50 animate-in fade-in zoom-in-95">
+              <div className="absolute top-8 left-0 w-80 p-3.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl z-50">
                 <h4 className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
                   Условие задачи и заметки
                 </h4>
@@ -156,10 +154,10 @@ export const HeaderNavbar: React.FC = () => {
       <div className="flex items-center bg-zinc-100 dark:bg-zinc-800/90 p-0.5 rounded border border-zinc-200 dark:border-zinc-700/80 font-mono text-[11px]">
         <button
           type="button"
-          onClick={() => setMode('5-tuple')}
+          onClick={() => switchMode('5-tuple')}
           className={`px-2.5 py-1 rounded transition-colors ${
             project.mode === '5-tuple'
-              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-xs border border-zinc-200 dark:border-zinc-700'
+              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-sm border border-zinc-200 dark:border-zinc-700'
               : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
           title="Классический режим 5-tuples: (q, a, a', d, q')"
@@ -169,13 +167,10 @@ export const HeaderNavbar: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => {
-            setMode('4-tuple');
-            setSubMode('state-graph');
-          }}
+          onClick={() => switchMode('4-tuple', 'state-graph')}
           className={`px-2.5 py-1 rounded transition-colors ${
             project.mode === '4-tuple' && project.subMode === 'state-graph'
-              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-xs border border-zinc-200 dark:border-zinc-700'
+              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-sm border border-zinc-200 dark:border-zinc-700'
               : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
           title="Режим 4-tuples: Граф состояний с раздельным сдвигом/записью"
@@ -185,13 +180,10 @@ export const HeaderNavbar: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => {
-            setMode('4-tuple');
-            setSubMode('operational');
-          }}
+          onClick={() => switchMode('4-tuple', 'operational')}
           className={`px-2.5 py-1 rounded transition-colors ${
             project.mode === '4-tuple' && project.subMode === 'operational'
-              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-xs border border-zinc-200 dark:border-zinc-700'
+              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-sm border border-zinc-200 dark:border-zinc-700'
               : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
           }`}
           title="Режим 4-tuples: Операционная блок-схема VTM"
@@ -236,7 +228,7 @@ export const HeaderNavbar: React.FC = () => {
         <button
           type="button"
           onClick={() => setExportModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1 rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 text-xs font-semibold shadow-xs transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1 rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 text-xs font-semibold shadow-sm transition-colors"
           title="Экспорт проекта (LaTeX, JSON, PlantUML, Markdown, PNG)"
         >
           <Share2 className="w-3.5 h-3.5" />

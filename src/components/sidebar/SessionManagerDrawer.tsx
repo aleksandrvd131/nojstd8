@@ -11,8 +11,8 @@ import {
   Upload,
   Download,
   Calendar,
-  Layers,
   Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { TuringMode, FourTupleSubMode, ProjectSession } from '../../types/turing';
 import { exportProjectToJSON, importProjectFromJSON } from '../../engine/exporter';
@@ -32,6 +32,8 @@ export const SessionManagerDrawer: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // New project modal state
   const [isCreatingNew, setIsCreatingNew] = useState(false);
@@ -81,14 +83,16 @@ export const SessionManagerDrawer: React.FC = () => {
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setImportError(null);
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const content = event.target?.result as string;
         const imported = importProjectFromJSON(content);
         importProject(imported);
-      } catch (err: any) {
-        alert('Ошибка при импорте JSON: ' + err.message);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setImportError(`Ошибка при импорте JSON: ${msg}`);
       }
     };
     reader.readAsText(file);
@@ -96,7 +100,7 @@ export const SessionManagerDrawer: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-xl h-full bg-white dark:bg-zinc-900 shadow-2xl flex flex-col border-r border-zinc-200 dark:border-zinc-800">
         {/* Header */}
         <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
@@ -122,7 +126,8 @@ export const SessionManagerDrawer: React.FC = () => {
         </div>
 
         {/* Toolbar: Search, New Project, Import */}
-        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center gap-3">
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800/80 space-y-2.5">
+          <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-zinc-400" />
             <input
@@ -153,6 +158,22 @@ export const SessionManagerDrawer: React.FC = () => {
             <Plus className="w-4 h-4" />
             <span>Новый проект</span>
           </button>
+          </div>
+          {importError && (
+            <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{importError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportError(null)}
+                className="text-rose-500 hover:text-rose-700"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* New Project Inline Modal / Form */}
@@ -319,21 +340,40 @@ export const SessionManagerDrawer: React.FC = () => {
                     >
                       <Download className="w-3.5 h-3.5" />
                     </button>
-                    {projects.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`Удалить проект "${p.name}"?`)) {
-                            deleteProject(p.id);
-                          }
-                        }}
-                        className="p-1.5 rounded-md hover:bg-rose-100 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-500"
-                        title="Удалить"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    {projects.length > 1 &&
+                      (confirmDeleteId === p.id ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              deleteProject(p.id);
+                              setConfirmDeleteId(null);
+                            }}
+                            className="px-2 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-semibold"
+                          >
+                            Удалить?
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="px-1.5 py-1 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-[10px]"
+                          >
+                            Нет
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeleteId(p.id);
+                          }}
+                          className="p-1.5 rounded-md hover:bg-rose-100 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-500"
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      ))}
                   </div>
                 </div>
 

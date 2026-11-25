@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useTuringStore } from '../../store/useTuringStore';
+import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import {
   exportProjectToJSON,
   exportToLaTeX,
+  exportToTikZ,
   exportToPlantUML,
   exportToMarkdown,
 } from '../../engine/exporter';
@@ -21,14 +22,16 @@ import {
 export const ExportModal: React.FC = () => {
   const isExportModalOpen = useTuringStore((s) => s.isExportModalOpen);
   const setExportModalOpen = useTuringStore((s) => s.setExportModalOpen);
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
   const exportDiagramImage = useTuringStore((s) => s.exportDiagramImage);
 
-  const project = getActiveProject();
+  const project = useActiveProject();
 
-  const [activeTab, setActiveTab] = useState<'json' | 'latex' | 'plantuml' | 'markdown' | 'image'>('json');
+  const [activeTab, setActiveTab] = useState<
+    'json' | 'latex' | 'tikz' | 'plantuml' | 'markdown' | 'image'
+  >('json');
   const [copied, setCopied] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   if (!isExportModalOpen) return null;
 
@@ -37,6 +40,8 @@ export const ExportModal: React.FC = () => {
     exportContent = exportProjectToJSON(project);
   } else if (activeTab === 'latex') {
     exportContent = exportToLaTeX(project);
+  } else if (activeTab === 'tikz') {
+    exportContent = exportToTikZ(project);
   } else if (activeTab === 'plantuml') {
     exportContent = exportToPlantUML(project);
   } else if (activeTab === 'markdown') {
@@ -56,7 +61,7 @@ export const ExportModal: React.FC = () => {
     if (activeTab === 'json') {
       filename += '.json';
       mime = 'application/json';
-    } else if (activeTab === 'latex') {
+    } else if (activeTab === 'latex' || activeTab === 'tikz') {
       filename += '.tex';
     } else if (activeTab === 'plantuml') {
       filename += '.puml';
@@ -75,20 +80,25 @@ export const ExportModal: React.FC = () => {
 
   const handleExportImage = async (format: 'png' | 'svg') => {
     try {
+      setExportError(null);
       setIsCapturing(true);
-      await exportDiagramImage({
+      const dataUrl = await exportDiagramImage({
         format,
         filename: `${project.name.replace(/\s+/g, '_')}_diagram`,
       });
-    } catch (err: any) {
-      alert(`Ошибка при экспорте ${format.toUpperCase()}: ` + err.message);
+      if (!dataUrl) {
+        setExportError(`Не удалось сформировать ${format.toUpperCase()} снимок холста.`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setExportError(`Ошибка при экспорте ${format.toUpperCase()}: ${msg}`);
     } finally {
       setIsCapturing(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 text-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-xs">
       <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl flex flex-col max-h-[85vh]">
         {/* Modal Header */}
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
@@ -137,6 +147,18 @@ export const ExportModal: React.FC = () => {
           >
             <FileText className="w-3.5 h-3.5" />
             LaTeX
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('tikz')}
+            className={`py-2.5 border-b-2 flex items-center gap-1.5 transition-colors ${
+              activeTab === 'tikz'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+            }`}
+          >
+            <FileCode className="w-3.5 h-3.5" />
+            TikZ
           </button>
           <button
             type="button"
@@ -197,7 +219,7 @@ export const ExportModal: React.FC = () => {
                   type="button"
                   onClick={() => handleExportImage('png')}
                   disabled={isCapturing}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 font-semibold shadow-xs disabled:opacity-40 transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 font-semibold shadow-sm disabled:opacity-40 transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>{isCapturing ? 'Экспорт...' : 'Скачать PNG'}</span>
@@ -213,6 +235,11 @@ export const ExportModal: React.FC = () => {
                   <span>Векторный SVG</span>
                 </button>
               </div>
+              {exportError && (
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                  {exportError}
+                </p>
+              )}
             </div>
           ) : (
             <>
@@ -237,7 +264,7 @@ export const ExportModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleDownloadText}
-                  className="flex items-center gap-1.5 px-3 py-1.5 font-semibold rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 shadow-xs transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 font-semibold rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 shadow-sm transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Скачать файл</span>

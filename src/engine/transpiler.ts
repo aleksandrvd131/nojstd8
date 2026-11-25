@@ -3,9 +3,10 @@ import {
   FourTupleRule,
   TuringNode,
   TuringEdge,
-  OperationalNodeType,
+  OperationNodeData,
   AlphabetConfig,
   FourTupleSubMode,
+  SubMachine,
 } from '../types/turing';
 
 /**
@@ -15,17 +16,25 @@ import {
  * - If a === a' and d !== 'N': (q, a, d, q')
  * - If d === 'N': (q, a, a', q')
  */
-export function convert5TupleTo4Tuple(rules5: FiveTupleRule[]): {
+export function convert5TupleTo4Tuple(
+  rules5: FiveTupleRule[],
+  existingIds: Set<string> = new Set()
+): {
   rules4: FourTupleRule[];
   auxiliaryNodes: { id: string; label: string }[];
 } {
   const rules4: FourTupleRule[] = [];
   const auxiliaryNodes: { id: string; label: string }[] = [];
+  const usedIds = new Set(existingIds);
   let auxCounter = 1;
 
   for (const r of rules5) {
     if (r.writeSymbol !== r.readSymbol && r.move !== 'N') {
-      const auxState = `q_aux_${auxCounter++}`;
+      let auxState = `q_aux_${auxCounter++}`;
+      while (usedIds.has(auxState)) {
+        auxState = `q_aux_${auxCounter++}`;
+      }
+      usedIds.add(auxState);
       auxiliaryNodes.push({
         id: auxState,
         label: auxState,
@@ -106,44 +115,119 @@ export function convert4TupleTo5Tuple(rules4: FourTupleRule[]): FiveTupleRule[] 
   return rules5;
 }
 
+function isWildcardRule(r: { isWildcard?: boolean; isComplement?: boolean; readSymbol: string }): boolean {
+  return r.isWildcard === true || (r.isWildcard === undefined && !r.isComplement && r.readSymbol === '*');
+}
+
+function findMatchingOperationalEdge(outgoing: TuringEdge[], sym: string): TuringEdge | undefined {
+  return (
+    outgoing.find((e) =>
+      e.data?.rules?.some((r) => !isWildcardRule(r) && !r.isComplement && r.readSymbol === sym)
+    ) ||
+    outgoing.find((e) => e.data?.rules?.some((r) => !!r.isComplement && r.readSymbol !== sym)) ||
+    outgoing.find((e) => e.data?.rules?.some((r) => isWildcardRule(r)))
+  );
+}
+
 /**
- * Compiles an Operational Diagram (VTM style) into canonical 4-tuple rules.
- * In VTM, an operational node performs an elementary action (Shift L/R, Write, etc.)
- * then branches according to the read symbol.
+ * Compiles an Operational Diagram (VTM style) into canonical 4-tuple rules,
+ * including inline expansion of COMPLEX_MACHINE sub-machine calls.
  */
 export function compileOperationalDiagramTo4Tuples(
   nodes: TuringNode[],
   edges: TuringEdge[],
-  alphabet: AlphabetConfig
+  alphabet: AlphabetConfig,
+  subMachines: SubMachine[] = [],
+  statePrefix = '',
+  visitedSubMachineIds: Set<string> = new Set(),
+  returnTargetBySym?: Map<string, string>
 ): FourTupleRule[] {
   const rules4: FourTupleRule[] = [];
-  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const allSymbols = [...alphabet.symbols, alphabet.blankSymbol];
+  const prefixId = (id: string) => `${statePrefix}${id}`;
 
   for (const node of nodes) {
-    const data = node.data as {
-      opType?: OperationalNodeType;
-      symbolToWrite?: string;
-      label?: string;
-    };
-    if (!data.opType || data.opType === 'FINISH') continue;
+    const data = node.data as Partial<OperationNodeData>;
+    if (!data.opType) continue;
 
-    // Find outgoing edges
+    const fromId = prefixId(node.id);
     const outgoing = edges.filter((e) => e.source === node.id);
+
+    if (data.opType === 'FINISH') {
+      if (returnTargetBySym) {
+        for (const sym of allSymbols) {
+          const returnTarget = returnTargetBySym.get(sym);
+          if (returnTarget) {
+            rules4.push({
+              id: `op_${fromId}_ret_${sym}`,
+              fromState: fromId,
+              readSymbol: sym,
+              command: 'N',
+              toState: returnTarget,
+            });
+          }
+        }
+      }
+      continue;
+    }
+
+    // Inline expansion for COMPLEX_MACHINE calls
+    if (data.opType === 'COMPLEX_MACHINE' && data.subMachineId) {
+      const subMachine = subMachines.find((sm) => sm.id === data.subMachineId);
+      if (subMachine && !visitedSubMachineIds.has(subMachine.id)) {
+        const subStart = subMachine.nodes.find(
+          (n) => (n.data as OperationNodeData).opType === 'START'
+        );
+        if (subStart) {
+          const nestedPrefix = `${fromId}__${subMachine.id}__`;
+          const entryStateId = `${nestedPrefix}${subStart.id}`;
+
+          for (const sym of allSymbols) {
+            rules4.push({
+              id: `op_${fromId}_call_${sym}`,
+              fromState: fromId,
+              readSymbol: sym,
+              command: 'N',
+              toState: entryStateId,
+            });
+          }
+
+          const callerReturnMap = new Map<string, string>();
+          for (const sym of allSymbols) {
+            const matchingEdge = findMatchingOperationalEdge(outgoing, sym);
+            if (matchingEdge) {
+              callerReturnMap.set(sym, prefixId(matchingEdge.target));
+            }
+          }
+
+          const nextVisited = new Set(visitedSubMachineIds);
+          nextVisited.add(subMachine.id);
+          const inlinedRules = compileOperationalDiagramTo4Tuples(
+            subMachine.nodes,
+            subMachine.edges,
+            alphabet,
+            subMachines,
+            nestedPrefix,
+            nextVisited,
+            callerReturnMap
+          );
+          rules4.push(...inlinedRules);
+          continue;
+        }
+      }
+    }
 
     // If START node: directly branches on read symbol without altering tape
     if (data.opType === 'START') {
       for (const sym of allSymbols) {
-        const matchingEdge = outgoing.find((e) =>
-          e.data?.rules?.some((r) => r.readSymbol === sym || r.readSymbol === '*' || r.isWildcard)
-        );
+        const matchingEdge = findMatchingOperationalEdge(outgoing, sym);
         if (matchingEdge) {
           rules4.push({
-            id: `op_${node.id}_${sym}`,
-            fromState: node.id,
+            id: `op_${fromId}_${sym}`,
+            fromState: fromId,
             readSymbol: sym,
             command: 'N',
-            toState: matchingEdge.target,
+            toState: prefixId(matchingEdge.target),
           });
         }
       }
@@ -155,36 +239,25 @@ export function compileOperationalDiagramTo4Tuples(
       const moveCmd = data.opType === 'SEARCH_L' ? 'L' : 'R';
       const blank = alphabet.blankSymbol;
 
-      // 1. Loop on all non-blank symbols
       for (const sym of allSymbols) {
         if (sym === blank) continue;
         rules4.push({
-          id: `op_${node.id}_loop_${sym}`,
-          fromState: node.id,
+          id: `op_${fromId}_loop_${sym}`,
+          fromState: fromId,
           readSymbol: sym,
           command: moveCmd,
-          toState: node.id,
+          toState: fromId,
         });
       }
 
-      // 2. Exit rule on reaching blank symbol
-      const matchingEdge = outgoing.find((e) =>
-        e.data?.rules?.some(
-          (r) =>
-            r.readSymbol === blank ||
-            r.readSymbol === '*' ||
-            r.isWildcard ||
-            (r.isComplement && r.readSymbol !== blank)
-        )
-      );
-
+      const matchingEdge = findMatchingOperationalEdge(outgoing, blank);
       if (matchingEdge) {
         rules4.push({
-          id: `op_${node.id}_exit_${blank}`,
-          fromState: node.id,
+          id: `op_${fromId}_exit_${blank}`,
+          fromState: fromId,
           readSymbol: blank,
           command: 'N',
-          toState: matchingEdge.target,
+          toState: prefixId(matchingEdge.target),
         });
       }
       continue;
@@ -196,26 +269,15 @@ export function compileOperationalDiagramTo4Tuples(
     else if (data.opType === 'SHIFT_R') command = 'R';
     else if (data.opType === 'WRITE_SYM') command = data.symbolToWrite || alphabet.blankSymbol;
 
-    // Outgoing transitions based on symbol condition
     for (const sym of allSymbols) {
-      // Find edge that has condition matching sym
-      const matchingEdge = outgoing.find((e) =>
-        e.data?.rules?.some(
-          (r) =>
-            r.readSymbol === sym ||
-            r.readSymbol === '*' ||
-            r.isWildcard ||
-            (r.isComplement && r.readSymbol !== sym)
-        )
-      );
-
+      const matchingEdge = findMatchingOperationalEdge(outgoing, sym);
       if (matchingEdge) {
         rules4.push({
-          id: `op_${node.id}_${sym}`,
-          fromState: node.id,
+          id: `op_${fromId}_${sym}`,
+          fromState: fromId,
           readSymbol: sym,
           command,
-          toState: matchingEdge.target,
+          toState: prefixId(matchingEdge.target),
         });
       }
     }
@@ -225,15 +287,19 @@ export function compileOperationalDiagramTo4Tuples(
 }
 
 /**
- * Synchronize rules with edges.
- * Generates TuringEdges from rules array or updates edge data.
+ * Synchronize rules with edges while preserving existing handle bindings and label offsets.
  */
 export function buildEdgesFromRules(
   rules: (FiveTupleRule | FourTupleRule)[],
   mode: '5-tuple' | '4-tuple',
-  subMode?: FourTupleSubMode
+  subMode?: FourTupleSubMode,
+  existingEdges: TuringEdge[] = []
 ): TuringEdge[] {
-  // Group rules by source and target
+  const existingByPair = new Map<string, TuringEdge>();
+  for (const edge of existingEdges) {
+    existingByPair.set(`${edge.source}->${edge.target}`, edge);
+  }
+
   const groupMap = new Map<string, { source: string; target: string; rules: any[] }>();
 
   for (const r of rules) {
@@ -265,19 +331,21 @@ export function buildEdgesFromRules(
   }
 
   const edges: TuringEdge[] = [];
-  const edgeKeys = Array.from(groupMap.keys());
 
   for (const [key, item] of groupMap.entries()) {
     const isSelfLoop = item.source === item.target;
     const reverseKey = `${item.target}->${item.source}`;
     const hasReverse = !isSelfLoop && groupMap.has(reverseKey);
+    const existing = existingByPair.get(key);
 
-    const edgeId = `edge_${item.source}_${item.target}`;
+    const edgeId = existing?.id || `edge_${item.source}_${item.target}`;
 
     edges.push({
       id: edgeId,
       source: item.source,
       target: item.target,
+      ...(existing?.sourceHandle ? { sourceHandle: existing.sourceHandle } : {}),
+      ...(existing?.targetHandle ? { targetHandle: existing.targetHandle } : {}),
       type: 'customTransition',
       data: {
         rules: item.rules,
@@ -285,6 +353,7 @@ export function buildEdgesFromRules(
         subMode,
         isBiDirectional: hasReverse,
         offsetDirection: item.source < item.target ? 1 : -1,
+        ...(existing?.data?.labelOffset ? { labelOffset: existing.data.labelOffset } : {}),
       },
     });
   }

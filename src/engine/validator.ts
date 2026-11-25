@@ -4,6 +4,7 @@ import {
   StateNodeData,
   OperationNodeData,
 } from '../types/turing';
+import { tokenizeTapeInput } from './simulator';
 
 const RESERVED_SYMBOLS = new Set(['L', 'R', 'N', '<', '>', '.']);
 
@@ -143,19 +144,40 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
     // Operational diagram determinism
     for (const node of nodes) {
       const outgoing = edges.filter((e) => e.source === node.id);
-      const symbolMap = new Map<string, number>();
+      const conditionMap = new Map<string, number>();
       for (const e of outgoing) {
         for (const r of e.data?.rules || []) {
-          const sym = r.readSymbol;
-          symbolMap.set(sym, (symbolMap.get(sym) || 0) + 1);
+          const isWild =
+            r.isWildcard === true || (r.isWildcard === undefined && !r.isComplement && r.readSymbol === '*');
+          const key = isWild ? '*' : r.isComplement ? `¬${r.readSymbol}` : r.readSymbol;
+          conditionMap.set(key, (conditionMap.get(key) || 0) + 1);
         }
       }
-      for (const [sym, count] of symbolMap.entries()) {
+      for (const [cond, count] of conditionMap.entries()) {
         if (count > 1) {
           issues.push({
-            id: `non_det_op_${node.id}_${sym}`,
+            id: `non_det_op_${node.id}_${cond}`,
             severity: 'error',
-            message: `Из узла '${node.id}' выходит ${count} ветвления по символу '${sym}'.`,
+            message: `Из узла '${node.id}' выходит ${count} ветвления по условию '${cond}'.`,
+            nodeId: node.id,
+          });
+        }
+      }
+
+      // Check overlapping complement (¬a vs ¬b) across different outgoing edges
+      const complementEdges = outgoing
+        .map((e) => ({
+          edgeId: e.id,
+          syms: (e.data?.rules || []).filter((r) => !!r.isComplement).map((r) => r.readSymbol),
+        }))
+        .filter((item) => item.syms.length > 0);
+      if (complementEdges.length > 1) {
+        const distinctComps = new Set(complementEdges.flatMap((c) => c.syms));
+        if (distinctComps.size > 1) {
+          issues.push({
+            id: `overlap_complement_${node.id}`,
+            severity: 'warning',
+            message: `У узла '${node.data.label || node.id}' несколько рёбер с условием '¬' (${Array.from(distinctComps).map((s) => `¬${s}`).join(', ')}) — они пересекаются на остальных символах.`,
             nodeId: node.id,
           });
         }
@@ -256,6 +278,25 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
             message: `Подмашина с ID '${opData.subMachineId}' не найдена в проекте.`,
             nodeId: node.id,
           });
+        } else {
+          const hasStart = found.nodes.some((sn) => (sn.data as OperationNodeData).opType === 'START');
+          if (!hasStart) {
+            issues.push({
+              id: `submachine_no_start_${node.id}`,
+              severity: 'error',
+              message: `В подмашине '${found.name}' отсутствует узел START.`,
+              nodeId: node.id,
+            });
+          }
+          const hasFinish = found.nodes.some((sn) => (sn.data as OperationNodeData).opType === 'FINISH');
+          if (!hasFinish) {
+            issues.push({
+              id: `submachine_no_finish_${node.id}`,
+              severity: 'warning',
+              message: `В подмашине '${found.name}' отсутствует узел FINISH.`,
+              nodeId: node.id,
+            });
+          }
         }
       }
     }
@@ -312,7 +353,9 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
       }
       const outgoing = edges.filter((e) => e.source === node.id);
       const hasWildcard = outgoing.some((e) =>
-        e.data?.rules?.some((r) => r.isWildcard || r.readSymbol === '*')
+        e.data?.rules?.some(
+          (r) => r.isWildcard === true || (r.isWildcard === undefined && !r.isComplement && r.readSymbol === '*')
+        )
       );
       if (hasWildcard) continue;
 
@@ -329,7 +372,7 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
         }
       }
 
-      const missing = allSymbols.filter((s) => !coveredSymbols.has(s));
+        const missing = allSymbols.filter((s) => !coveredSymbols.has(s));
       if (missing.length > 0) {
         issues.push({
           id: `incomplete_op_${node.id}`,
@@ -338,6 +381,70 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
           nodeId: node.id,
         });
       }
+    }
+  }
+
+  // 7. Sub-machine call cycle detection
+  if (subMachines && subMachines.length > 0) {
+    const subAdj = new Map<string, string[]>();
+    for (const sm of subMachines) {
+      const callees = sm.nodes
+        .map((n) => (n.data as OperationNodeData).subMachineId)
+        .filter((id): id is string => !!id);
+      subAdj.set(sm.id, callees);
+    }
+
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const hasCycle = (id: string): boolean => {
+      if (visiting.has(id)) return true;
+      if (visited.has(id)) return false;
+      visiting.add(id);
+      for (const nextId of subAdj.get(id) || []) {
+        if (hasCycle(nextId)) return true;
+      }
+      visiting.delete(id);
+      visited.add(id);
+      return false;
+    };
+
+    for (const sm of subMachines) {
+      if (hasCycle(sm.id)) {
+        issues.push({
+          id: `submachine_cycle_${sm.id}`,
+          severity: 'error',
+          message: `Обнаружена циклическая рекурсия в подмашине '${sm.name}'.`,
+        });
+        break;
+      }
+    }
+  }
+
+  // 8. Tape & test case symbol check against current alphabet
+  const knownSymbolSet = new Set(allSymbols);
+  const invalidTapeSymbols = new Set<string>();
+  for (const sym of Object.values(session.initialTape || {})) {
+    if (!knownSymbolSet.has(sym)) {
+      invalidTapeSymbols.add(sym);
+    }
+  }
+  if (invalidTapeSymbols.size > 0) {
+    issues.push({
+      id: 'unknown_initial_tape_symbols',
+      severity: 'warning',
+      message: `На начальной ленте есть символы вне алфавита: ${Array.from(invalidTapeSymbols).join(', ')}.`,
+    });
+  }
+
+  for (const tc of session.testCases || []) {
+    const tokens = tokenizeTapeInput(tc.inputTape, alphabet);
+    const unknown = Array.from(new Set(tokens.filter((t) => !knownSymbolSet.has(t))));
+    if (unknown.length > 0) {
+      issues.push({
+        id: `unknown_test_symbols_${tc.id}`,
+        severity: 'warning',
+        message: `В тесте '${tc.name}' есть символы вне алфавита: ${unknown.join(', ')}.`,
+      });
     }
   }
 

@@ -7,7 +7,6 @@ import {
   SkipBack,
   RotateCcw,
   Gauge,
-  Activity,
   Layers,
   Clock,
   HardDrive,
@@ -91,7 +90,7 @@ export const DebuggerControls: React.FC = () => {
           <button
             type="button"
             onClick={pauseRunning}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-sm transition-colors"
             title="Пауза [R]"
           >
             <Pause className="w-3.5 h-3.5 fill-current" />
@@ -103,7 +102,7 @@ export const DebuggerControls: React.FC = () => {
             type="button"
             onClick={startRunning}
             disabled={isHaltedOrError}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 font-medium shadow-xs disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 font-medium shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             title="Непрерывное выполнение [R]"
           >
             <Play className="w-3.5 h-3.5 fill-current" />

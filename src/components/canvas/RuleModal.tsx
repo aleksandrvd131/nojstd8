@@ -16,6 +16,7 @@ export const RuleModal: React.FC = () => {
   const updateFourTupleRule = useTuringStore((s) => s.updateFourTupleRule);
   const deleteFourTupleRule = useTuringStore((s) => s.deleteFourTupleRule);
   const deleteEdgeRule = useTuringStore((s) => s.deleteEdgeRule);
+  const upsertOperationalEdgeRule = useTuringStore((s) => s.upsertOperationalEdgeRule);
 
   const project = useActiveProject();
   const { mode, subMode, alphabet } = project;
@@ -31,21 +32,49 @@ export const RuleModal: React.FC = () => {
   const [fourWriteSym, setFourWriteSym] = useState(allSymbols[0] || '0');
 
   // For operational
-  const [isWildcard, setIsWildcard] = useState(false);
+  const [opConditionType, setOpConditionType] = useState<'exact' | 'complement' | 'wildcard'>('exact');
 
   useEffect(() => {
-    if (!ruleModalData) return;
+    if (!isRuleModalOpen || !ruleModalData) return;
+
+    const latestProject = useTuringStore.getState().getActiveProject();
+    const syms = [...latestProject.alphabet.symbols, latestProject.alphabet.blankSymbol];
+    const defaultSym = syms[0] || '0';
 
     if (ruleModalData.ruleId) {
-      if (mode === '5-tuple') {
-        const existing = project.rules5.find((r) => r.id === ruleModalData.ruleId);
+      if (latestProject.mode === '5-tuple') {
+        const existing = latestProject.rules5.find((r) => r.id === ruleModalData.ruleId);
         if (existing) {
           setReadSymbol(existing.readSymbol);
           setWriteSymbol(existing.writeSymbol);
           setMove(existing.move);
         }
+      } else if (latestProject.subMode === 'operational') {
+        const edge = latestProject.edges.find(
+          (e) =>
+            e.id === ruleModalData.edgeId ||
+            (e.source === ruleModalData.sourceNodeId && e.target === ruleModalData.targetNodeId)
+        );
+        const existingRule = edge?.data?.rules?.find((r) => r.id === ruleModalData.ruleId);
+        if (existingRule) {
+          const isWild =
+            existingRule.isWildcard === true ||
+            (existingRule.isWildcard === undefined &&
+              !existingRule.isComplement &&
+              existingRule.readSymbol === '*');
+          if (isWild) {
+            setOpConditionType('wildcard');
+            setReadSymbol(defaultSym);
+          } else if (existingRule.isComplement) {
+            setOpConditionType('complement');
+            setReadSymbol(existingRule.readSymbol);
+          } else {
+            setOpConditionType('exact');
+            setReadSymbol(existingRule.readSymbol);
+          }
+        }
       } else {
-        const existing = project.rules4.find((r) => r.id === ruleModalData.ruleId);
+        const existing = latestProject.rules4.find((r) => r.id === ruleModalData.ruleId);
         if (existing) {
           setReadSymbol(existing.readSymbol);
           if (existing.command === 'L' || existing.command === 'R' || existing.command === 'N') {
@@ -59,14 +88,15 @@ export const RuleModal: React.FC = () => {
       }
     } else {
       // Default to first symbol
-      setReadSymbol(allSymbols[0] || '0');
-      setWriteSymbol(allSymbols[0] || '0');
+      setReadSymbol(defaultSym);
+      setWriteSymbol(defaultSym);
       setMove('R');
+      setFourCommandType('move');
       setFourMove('R');
-      setFourWriteSym(allSymbols[0] || '0');
-      setIsWildcard(false);
+      setFourWriteSym(defaultSym);
+      setOpConditionType('exact');
     }
-  }, [ruleModalData, project, mode]);
+  }, [isRuleModalOpen, ruleModalData]);
 
   if (!isRuleModalOpen || !ruleModalData) return null;
 
@@ -112,61 +142,16 @@ export const RuleModal: React.FC = () => {
         });
       }
     } else {
-      // Operational diagram: update edge rule item
-      const edge = project.edges.find((e) => e.id === ruleModalData.edgeId);
-      const symbolCondition = isWildcard ? '*' : readSymbol;
-
-      useTuringStore.getState().updateActiveProject((prev) => {
-        const edgeId = ruleModalData.edgeId || `e_${ruleModalData.sourceNodeId}_${ruleModalData.targetNodeId}`;
-        const existingEdge = prev.edges.find((e) => e.id === edgeId);
-
-        const newRuleItem = {
-          id: ruleModalData.ruleId || `r_op_${Date.now()}`,
-          readSymbol: symbolCondition,
-          isWildcard,
-        };
-
-        if (existingEdge) {
-          return {
-            ...prev,
-            edges: prev.edges.map((e) => {
-              if (e.id === edgeId) {
-                const rules = e.data?.rules || [];
-                const updatedRules = ruleModalData.ruleId
-                  ? rules.map((r) => (r.id === ruleModalData.ruleId ? newRuleItem : r))
-                  : [...rules, newRuleItem];
-                return {
-                  ...e,
-                  data: {
-                    ...e.data,
-                    mode: e.data?.mode || prev.mode,
-                    subMode: e.data?.subMode || prev.subMode,
-                    rules: updatedRules,
-                  },
-                };
-              }
-              return e;
-            }),
-          };
-        } else {
-          return {
-            ...prev,
-            edges: [
-              ...prev.edges,
-              {
-                id: edgeId,
-                source: ruleModalData.sourceNodeId!,
-                target: ruleModalData.targetNodeId!,
-                type: 'customTransition',
-                data: {
-                  mode: prev.mode,
-                  subMode: prev.subMode,
-                  rules: [newRuleItem],
-                },
-              },
-            ],
-          };
-        }
+      upsertOperationalEdgeRule({
+        edgeId: ruleModalData.edgeId,
+        sourceNodeId: ruleModalData.sourceNodeId,
+        targetNodeId: ruleModalData.targetNodeId,
+        sourceHandle: ruleModalData.sourceHandle,
+        targetHandle: ruleModalData.targetHandle,
+        ruleId: ruleModalData.ruleId,
+        readSymbol,
+        isWildcard: opConditionType === 'wildcard',
+        isComplement: opConditionType === 'complement',
       });
     }
 
@@ -190,7 +175,7 @@ export const RuleModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 text-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity text-xs">
       <div className="w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-xl p-5">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
@@ -218,20 +203,43 @@ export const RuleModal: React.FC = () => {
               Считанный символ (Read Symbol)
             </label>
             {subMode === 'operational' ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="wildcard"
-                    checked={isWildcard}
-                    onChange={(e) => setIsWildcard(e.target.checked)}
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800"
-                  />
-                  <label htmlFor="wildcard" className="text-sm text-zinc-700 dark:text-zinc-300">
-                    Любой символ ленты (<span className="font-mono font-bold">*</span>)
-                  </label>
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-3 gap-1.5 rounded-lg p-1 bg-zinc-100 dark:bg-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => setOpConditionType('exact')}
+                    className={`py-1.5 text-[11px] font-semibold rounded-md transition-all ${
+                      opConditionType === 'exact'
+                        ? 'bg-white dark:bg-zinc-900 text-sky-600 dark:text-sky-400 shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                    }`}
+                  >
+                    Символ (a)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpConditionType('complement')}
+                    className={`py-1.5 text-[11px] font-semibold rounded-md transition-all ${
+                      opConditionType === 'complement'
+                        ? 'bg-white dark:bg-zinc-900 text-sky-600 dark:text-sky-400 shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                    }`}
+                  >
+                    Кроме (¬a)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpConditionType('wildcard')}
+                    className={`py-1.5 text-[11px] font-semibold rounded-md transition-all ${
+                      opConditionType === 'wildcard'
+                        ? 'bg-white dark:bg-zinc-900 text-sky-600 dark:text-sky-400 shadow-sm'
+                        : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                    }`}
+                  >
+                    Любой (*)
+                  </button>
                 </div>
-                {!isWildcard && (
+                {opConditionType !== 'wildcard' && (
                   <select
                     value={readSymbol}
                     onChange={(e) => setReadSymbol(e.target.value)}
@@ -239,7 +247,8 @@ export const RuleModal: React.FC = () => {
                   >
                     {allSymbols.map((sym) => (
                       <option key={sym} value={sym}>
-                        {sym === alphabet.blankSymbol ? `${sym} (blank)` : sym}
+                        {opConditionType === 'complement' ? `¬${sym}` : sym}
+                        {sym === alphabet.blankSymbol ? ' (blank)' : ''}
                       </option>
                     ))}
                   </select>

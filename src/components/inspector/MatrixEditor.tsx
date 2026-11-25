@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { useTuringStore } from '../../store/useTuringStore';
+import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import { MoveDirection } from '../../types/turing';
-import { Grid3X3, Plus, Trash2, X, AlertTriangle } from 'lucide-react';
+import { Grid3X3, Plus, AlertTriangle } from 'lucide-react';
 
 export const MatrixEditor: React.FC = () => {
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
   const runtime = useTuringStore((s) => s.runtime);
 
   const addFiveTupleRule = useTuringStore((s) => s.addFiveTupleRule);
@@ -15,7 +14,7 @@ export const MatrixEditor: React.FC = () => {
   const updateFourTupleRule = useTuringStore((s) => s.updateFourTupleRule);
   const deleteFourTupleRule = useTuringStore((s) => s.deleteFourTupleRule);
 
-  const project = getActiveProject();
+  const project = useActiveProject();
   const { mode, subMode, rules5, rules4, alphabet, nodes } = project;
   const allSymbols = [...alphabet.symbols, alphabet.blankSymbol];
   const stateNodes = nodes.filter((n) => n.type === 'stateNode' || !n.type);
@@ -295,7 +294,7 @@ export const MatrixEditor: React.FC = () => {
                           <span className="truncate max-w-[120px] font-semibold text-[11px]">
                             {cellRules.map((r) => r.display).join(' | ')}
                           </span>
-                          <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/40">
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/40">
                             Недетерм. ({cellRules.length})
                           </span>
                         </div>
@@ -311,7 +310,7 @@ export const MatrixEditor: React.FC = () => {
 
       {/* Inline editor panel when a cell is selected */}
       {editingCell && (
-        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 animate-in slide-in-from-bottom-2">
+        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-zinc-700 dark:text-zinc-300">

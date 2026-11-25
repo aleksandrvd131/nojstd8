@@ -6,7 +6,44 @@ import {
   OperationNodeData,
   SparseTape,
   TestCase,
+  AlphabetConfig,
+  EdgeRuleItem,
 } from '../types/turing';
+
+export function tokenizeTapeInput(word: string, alphabet: AlphabetConfig): string[] {
+  if (!word) return [];
+  const knownTokens = [...alphabet.symbols, alphabet.blankSymbol]
+    .filter((s) => s.length > 0)
+    .sort((a, b) => b.length - a.length);
+
+  const tokens: string[] = [];
+  let i = 0;
+  while (i < word.length) {
+    const matched = knownTokens.find((tok) => tok.length > 1 && word.startsWith(tok, i));
+    if (matched) {
+      tokens.push(matched);
+      i += matched.length;
+    } else {
+      tokens.push(word[i]);
+      i += 1;
+    }
+  }
+  return tokens;
+}
+
+const MAX_CYCLE_WINDOW = 256;
+
+export function getConfigurationKey(state: RuntimeState, blank: string): string {
+  const tapeEntries = Object.keys(state.tape)
+    .map(Number)
+    .filter((pos) => state.tape[pos] !== undefined && state.tape[pos] !== blank)
+    .sort((a, b) => a - b)
+    .map((pos) => `${pos}:${state.tape[pos]}`);
+  const stackKey = state.callStack
+    .map((f) => `${f.subMachineId}@${f.returnNodeId}`)
+    .join('>');
+  return `${state.currentNodeId}|${state.headPosition}|${stackKey}|${tapeEntries.join(',')}`;
+}
 
 export interface RuntimeState {
   currentNodeId: string;
@@ -16,6 +53,7 @@ export interface RuntimeState {
   visitedPositions: number[];
   callStack: CallStackFrame[];
   history: ExecutionSnapshot[];
+  recentConfigs?: string[];
   status: 'idle' | 'running' | 'paused' | 'halted' | 'error';
   statusMessage?: string;
   activeEdgeId?: string;
@@ -35,8 +73,9 @@ export function initRuntimeState(
 
   if (customInputString !== undefined) {
     initialTape = {};
-    for (let i = 0; i < customInputString.length; i++) {
-      initialTape[i] = customInputString[i];
+    const tokens = tokenizeTapeInput(customInputString, session.alphabet);
+    for (let i = 0; i < tokens.length; i++) {
+      initialTape[i] = tokens[i];
     }
   }
 
@@ -54,7 +93,7 @@ export function initRuntimeState(
     startNodeId = startNode ? startNode.id : (session.nodes[0]?.id || '');
   }
 
-  return {
+  const initialState: RuntimeState = {
     currentNodeId: startNodeId,
     headPosition,
     tape: initialTape,
@@ -65,12 +104,43 @@ export function initRuntimeState(
     status: startNodeId ? 'idle' : 'error',
     statusMessage: startNodeId ? 'Готов к запуску' : 'Не найден начальный узел (START)',
   };
+  if (startNodeId) {
+    initialState.recentConfigs = [getConfigurationKey(initialState, session.alphabet.blankSymbol)];
+  }
+  return initialState;
 }
 
-/**
- * Executes a single step of the Turing Machine
- */
 export function stepMachine(
+  session: ProjectSession,
+  state: RuntimeState
+): RuntimeState {
+  const nextState = stepMachineCore(session, state);
+  if (nextState.status !== 'running') {
+    return nextState;
+  }
+
+  const prevConfigs = state.recentConfigs ?? [];
+  const nextKey = getConfigurationKey(nextState, session.alphabet.blankSymbol);
+  if (prevConfigs.includes(nextKey)) {
+    return {
+      ...nextState,
+      status: 'error',
+      statusMessage: `Обнаружено зацикливание (повтор конфигурации на такте ${nextState.stepCount}).`,
+    };
+  }
+
+  const updatedConfigs = [...prevConfigs, nextKey];
+  if (updatedConfigs.length > MAX_CYCLE_WINDOW) {
+    updatedConfigs.shift();
+  }
+
+  return {
+    ...nextState,
+    recentConfigs: updatedConfigs,
+  };
+}
+
+function stepMachineCore(
   session: ProjectSession,
   state: RuntimeState
 ): RuntimeState {
@@ -309,6 +379,7 @@ export function stepMachine(
   // B. Perform Node Operation
   const newTape = { ...state.tape };
   let newHead = state.headPosition;
+  const scannedPositions: number[] = [];
 
   if (opData.opType === 'SHIFT_L') {
     newHead -= 1;
@@ -316,13 +387,19 @@ export function stepMachine(
     newHead += 1;
   } else if (opData.opType === 'SEARCH_L') {
     // Search left until blank
-    while ((newTape[newHead] ?? blank) !== blank) {
+    let guard = 0;
+    while ((newTape[newHead] ?? blank) !== blank && guard < 100000) {
+      scannedPositions.push(newHead);
       newHead -= 1;
+      guard++;
     }
   } else if (opData.opType === 'SEARCH_R') {
     // Search right until blank
-    while ((newTape[newHead] ?? blank) !== blank) {
+    let guard = 0;
+    while ((newTape[newHead] ?? blank) !== blank && guard < 100000) {
+      scannedPositions.push(newHead);
       newHead += 1;
+      guard++;
     }
   } else if (opData.opType === 'WRITE_SYM') {
     const symToWrite = opData.symbolToWrite ?? blank;
@@ -375,39 +452,36 @@ export function stepMachine(
   // Symbol now under head after operation
   const symbolAfterOp = newTape[newHead] ?? blank;
 
-  // C. Find matching outgoing branch edge
+  // C. Find matching outgoing branch edge (priority: exact > complement > wildcard)
   const outgoingEdges = activeEdges.filter((e) => e.source === currentNode.id);
-  let nextTargetNodeId: string | null = null;
-  let chosenEdge: any = null;
+  const isWildcardRule = (r: EdgeRuleItem) =>
+    r.isWildcard === true || (r.isWildcard === undefined && !r.isComplement && r.readSymbol === '*');
+  const findEdgeByPriority = (predicate: (r: EdgeRuleItem) => boolean) =>
+    outgoingEdges.find((edge) => (edge.data?.rules || []).some(predicate));
 
-  for (const edge of outgoingEdges) {
-    const rules = edge.data?.rules || [];
-    const matched = rules.some((r: any) => {
-      if (r.isWildcard || r.readSymbol === '*') return true;
-      if (r.isComplement) return r.readSymbol !== symbolAfterOp;
-      return r.readSymbol === symbolAfterOp;
-    });
+  const chosenEdge =
+    findEdgeByPriority((r) => !isWildcardRule(r) && !r.isComplement && r.readSymbol === symbolAfterOp) ||
+    findEdgeByPriority((r) => !!r.isComplement && r.readSymbol !== symbolAfterOp) ||
+    findEdgeByPriority((r) => isWildcardRule(r));
 
-    if (matched) {
-      nextTargetNodeId = edge.target;
-      chosenEdge = edge;
-      break;
-    }
-  }
+  const nextTargetNodeId = chosenEdge?.target ?? null;
+
+  const visitedSet = new Set(state.visitedPositions);
+  for (const pos of scannedPositions) visitedSet.add(pos);
+  visitedSet.add(newHead);
+  const newVisited =
+    visitedSet.size === state.visitedPositions.length ? state.visitedPositions : Array.from(visitedSet);
 
   if (!nextTargetNodeId) {
     return {
       ...state,
       tape: newTape,
       headPosition: newHead,
+      visitedPositions: newVisited,
       status: 'halted',
       statusMessage: `Останов: из узла '${opData.label}' нет перехода для символа '${symbolAfterOp}'.`,
     };
   }
-
-  const newVisited = state.visitedPositions.includes(newHead)
-    ? state.visitedPositions
-    : [...state.visitedPositions, newHead];
 
   return {
     ...state,
@@ -441,6 +515,7 @@ export function stepBackMachine(state: RuntimeState): RuntimeState {
     visitedPositions: previous.visitedPositions,
     callStack: previous.callStack,
     history: newHistory,
+    recentConfigs: (state.recentConfigs ?? []).slice(0, -1),
     status: 'paused',
     statusMessage: `Шаг назад: вернулись на такт ${previous.stepCount}.`,
   };
@@ -480,24 +555,34 @@ export function runTestCase(
   }
 
   let passed = true;
-  let errorMsg: string | undefined;
+  const errors: string[] = [];
 
   if (state.status === 'error') {
     passed = false;
-    errorMsg = state.statusMessage;
+    errors.push(state.statusMessage || 'Ошибка выполнения');
   } else if (steps >= maxSteps) {
     passed = false;
-    errorMsg = `Превышен лимит шагов (${maxSteps}). Возможно, зацикливание.`;
+    errors.push(`Превышен лимит шагов (${maxSteps}). Возможно, зацикливание.`);
   } else {
     if (testCase.expectedTape !== undefined && actualTapeStr !== testCase.expectedTape) {
       passed = false;
-      errorMsg = `Ожидалась лента "${testCase.expectedTape}", получено "${actualTapeStr}".`;
+      errors.push(`Ожидалась лента "${testCase.expectedTape}", получено "${actualTapeStr}".`);
     }
     if (testCase.expectedHeadPos !== undefined && state.headPosition !== testCase.expectedHeadPos) {
       passed = false;
-      errorMsg = `Ожидалась позиция головки ${testCase.expectedHeadPos}, получено ${state.headPosition}.`;
+      errors.push(`Ожидалась позиция головки ${testCase.expectedHeadPos}, получено ${state.headPosition}.`);
+    }
+    if (testCase.expectedHalt && testCase.expectedHalt !== 'any') {
+      const finalNode = session.nodes.find((n) => n.id === state.currentNodeId);
+      const finalType = (finalNode?.data as StateNodeData | undefined)?.stateType;
+      if (finalType !== testCase.expectedHalt) {
+        passed = false;
+        errors.push(`Ожидался останов в состоянии '${testCase.expectedHalt}', получено '${finalType ?? state.currentNodeId}'.`);
+      }
     }
   }
+
+  const errorMsg = errors.length > 0 ? errors.join(' ') : undefined;
 
   return {
     ...testCase,

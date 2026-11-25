@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useTuringStore } from '../../store/useTuringStore';
+import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import { StateNodeType, OperationalNodeType, StateNodeData, OperationNodeData } from '../../types/turing';
 import {
   X,
@@ -13,7 +13,7 @@ export const NodeInspector: React.FC = () => {
   const setSelectedNodeId = useTuringStore((s) => s.setSelectedNodeId);
   const updateNodeData = useTuringStore((s) => s.updateNodeData);
   const deleteNode = useTuringStore((s) => s.deleteNode);
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
+  const project = useActiveProject();
 
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
@@ -33,7 +33,6 @@ export const NodeInspector: React.FC = () => {
 
   if (!selectedNodeId) return null;
 
-  const project = getActiveProject();
   const node = project.nodes.find((n) => n.id === selectedNodeId);
   if (!node) return null;
 
@@ -88,7 +87,7 @@ export const NodeInspector: React.FC = () => {
   return (
     <div
       style={position ? { transform: `translate(${position.x}px, ${position.y}px)` } : undefined}
-      className="absolute top-14 right-3 z-20 w-76 max-w-[calc(100%-1.5rem)] rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg p-3.5 text-xs animate-in slide-in-from-top-1 duration-150"
+      className="absolute top-14 right-3 z-20 w-72 max-w-[calc(100%-1.5rem)] rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg p-3.5 text-xs"
     >
       {/* Draggable Header */}
       <div

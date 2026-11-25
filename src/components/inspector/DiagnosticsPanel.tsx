@@ -1,14 +1,13 @@
 import React, { useMemo } from 'react';
-import { useTuringStore } from '../../store/useTuringStore';
+import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import { validateMachine } from '../../engine/validator';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, ShieldCheck } from 'lucide-react';
 
 export const DiagnosticsPanel: React.FC = () => {
-  const getActiveProject = useTuringStore((s) => s.getActiveProject);
   const setSelectedNodeId = useTuringStore((s) => s.setSelectedNodeId);
   const setSelectedEdgeId = useTuringStore((s) => s.setSelectedEdgeId);
 
-  const project = getActiveProject();
+  const project = useActiveProject();
   const issues = useMemo(() => validateMachine(project), [project]);
 
   const errors = issues.filter((i) => i.severity === 'error');
