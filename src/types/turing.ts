@@ -85,6 +85,8 @@ export interface EdgeRuleItem {
 }
 
 export interface CustomEdgeData extends Record<string, unknown> {
+  sourcePortMode?: 'auto' | 'manual';
+  targetPortMode?: 'auto' | 'manual';
   rules: EdgeRuleItem[];
   mode: TuringMode;
   subMode?: FourTupleSubMode;

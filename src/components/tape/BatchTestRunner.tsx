@@ -8,7 +8,8 @@ import {
   XCircle,
   Clock,
   ArrowRight,
-  ExternalLink,
+  Copy,
+  Edit2,
 } from 'lucide-react';
 
 export const BatchTestRunner: React.FC = () => {
@@ -19,6 +20,7 @@ export const BatchTestRunner: React.FC = () => {
   const runAllTestCases = useTuringStore((s) => s.runAllTestCases);
   const runSingleTestCase = useTuringStore((s) => s.runSingleTestCase);
   const setTapeString = useTuringStore((s) => s.setTapeString);
+  const setHeadPosition = useTuringStore((s) => s.setHeadPosition);
 
   const project = getActiveProject();
   const testCases = project.testCases;
@@ -26,16 +28,29 @@ export const BatchTestRunner: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [newInput, setNewInput] = useState('');
   const [newExpected, setNewExpected] = useState('');
+  const [editingTestId, setEditingTestId] = useState<string | null>(null);
 
   const handleAddTest = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newInput.trim()) return;
 
-    addTestCase({
+    const testData = {
       name: newName.trim() || `Тест ${testCases.length + 1}`,
       inputTape: newInput.trim(),
       expectedTape: newExpected.trim() || undefined,
-    });
+      status: 'idle' as const,
+      lastActualTape: undefined,
+      lastActualHeadPos: undefined,
+      lastStepsCount: undefined,
+      errorMessage: undefined,
+    };
+
+    if (editingTestId) {
+      updateTestCase(editingTestId, testData);
+      setEditingTestId(null);
+    } else {
+      addTestCase(testData);
+    }
 
     setNewName('');
     setNewInput('');
@@ -44,6 +59,14 @@ export const BatchTestRunner: React.FC = () => {
 
   const handleLoadToMainTape = (input: string) => {
     setTapeString(input, 0);
+    setHeadPosition(input.length);
+  };
+
+  const handleEditTest = (testCase: (typeof testCases)[number]) => {
+    setEditingTestId(testCase.id);
+    setNewName(testCase.name);
+    setNewInput(testCase.inputTape);
+    setNewExpected(testCase.expectedTape ?? '');
   };
 
   const passedCount = testCases.filter((tc) => tc.status === 'passed').length;
@@ -114,8 +137,8 @@ export const BatchTestRunner: React.FC = () => {
                     className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 text-zinc-600 dark:text-zinc-300 text-[10px] font-semibold"
                     title="Загрузить входные данные на ленту холста"
                   >
-                    <ExternalLink className="w-3 h-3" />
-                    На ленту
+                    <Copy className="w-3 h-3" />
+                    Скопировать на ленту
                   </button>
 
                   <button
@@ -125,6 +148,15 @@ export const BatchTestRunner: React.FC = () => {
                     title="Запустить тест"
                   >
                     <Play className="w-3 h-3 fill-current" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleEditTest(tc)}
+                    className="p-1 rounded text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-100"
+                    title="Редактировать тест"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
                   </button>
 
                   <button
@@ -191,7 +223,7 @@ export const BatchTestRunner: React.FC = () => {
         className="p-3 bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 space-y-2"
       >
         <span className="font-semibold text-zinc-700 dark:text-zinc-300 block text-[11px]">
-          Добавить тестовый пример
+          {editingTestId ? 'Редактировать тестовый пример' : 'Добавить тестовый пример'}
         </span>
         <div className="grid grid-cols-3 gap-2 font-mono text-xs">
           <input
@@ -222,8 +254,22 @@ export const BatchTestRunner: React.FC = () => {
           className="w-full py-1.5 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center gap-1 shadow-sm"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>Добавить тест в набор</span>
+          <span>{editingTestId ? 'Сохранить изменения' : 'Добавить тест в набор'}</span>
         </button>
+        {editingTestId && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditingTestId(null);
+              setNewName('');
+              setNewInput('');
+              setNewExpected('');
+            }}
+            className="w-full py-1 text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+          >
+            Отменить редактирование
+          </button>
+        )}
       </form>
     </div>
   );

@@ -1,3 +1,4 @@
+import { roundedWire, type Wire } from '../../engine/wireLayout';
 import React, { memo } from 'react';
 import {
   BaseEdge,
@@ -35,62 +36,11 @@ export const CustomTransitionEdge = memo(
     const subMode = edgeData?.subMode;
     const isActive = runtimeActiveEdgeId === id;
 
-    const isSelfLoop = source === target;
-    const isBiDirectional = !!edgeData?.isBiDirectional;
-
-    let edgePath = '';
-    let labelX = 0;
-    let labelY = 0;
-
-    if (isSelfLoop) {
-      // Loop curve above the node
-      const loopHeight = 70;
-      const loopWidth = 40;
-      edgePath = `M ${sourceX - 12} ${sourceY} C ${sourceX - loopWidth} ${
-        sourceY - loopHeight
-      }, ${sourceX + loopWidth} ${sourceY - loopHeight}, ${sourceX + 12} ${sourceY}`;
-      labelX = sourceX;
-      labelY = sourceY - loopHeight + 8;
-    } else if (isBiDirectional) {
-      // Offset curved path for bi-directional transitions
-      const dx = targetX - sourceX;
-      const dy = targetY - sourceY;
-      const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = -dy / len;
-      const ny = dx / len;
-      // Normal vector (nx, ny) naturally reverses when source and target swap.
-      // Using a constant curvature offsets each directed edge to its own right side,
-      // avoiding duplicate offsetDir inversion that caused bidirectional edges to overlap.
-      const curvature = 36;
-
-      const midX = (sourceX + targetX) / 2 + nx * curvature;
-      const midY = (sourceY + targetY) / 2 + ny * curvature;
-
-      edgePath = `M ${sourceX} ${sourceY} Q ${midX} ${midY} ${targetX} ${targetY}`;
-      labelX = midX;
-      labelY = midY;
-    } else {
-      const [bezierPath, bx, by] = getBezierPath({
-        sourceX,
-        sourceY,
-        sourcePosition,
-        targetX,
-        targetY,
-        targetPosition,
-      });
-      edgePath = bezierPath;
-      labelX = bx;
-      labelY = by;
-    }
-
-    if (!isSelfLoop) {
-      const dx = targetX - sourceX;
-      const dy = targetY - sourceY;
-      const length = Math.hypot(dx, dy) || 1;
-      // Keep rule chips slightly off the wire so the arrow remains visible.
-      labelX += (-dy / length) * 18;
-      labelY += (dx / length) * 18;
-    }
+    const wire = edgeData?.wire as Wire | undefined;
+    const [edgePath, labelX, labelY] = wire ? [
+      roundedWire([{ x: sourceX, y: sourceY }, ...wire.points.slice(1, -1), { x: targetX, y: targetY }]),
+      wire.label.x, wire.label.y,
+    ] : getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
 
     const rules: EdgeRuleItem[] = edgeData?.rules || [];
 

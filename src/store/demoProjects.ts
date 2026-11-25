@@ -72,15 +72,7 @@ export const DEMO_PROJECT_1: ProjectSession = {
   ],
   rules4: [],
   subMachines: [],
-  initialTape: {
-    0: '#',
-    1: '1',
-    2: '0',
-    3: '$',
-    4: '1',
-    5: '#',
-    6: '$',
-  },
+  initialTape: {},
   initialHeadPosition: 0,
   testCases: [
     {

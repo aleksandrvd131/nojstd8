@@ -15,7 +15,9 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import { useTuringStore } from '../../store/useTuringStore';
-import { assignNearestEdgeHandles } from '../../engine/transpiler';
+import { pinnedSide, resolvePorts, sides } from '../../engine/ports';
+import { layoutWires } from '../../engine/wireLayout';
+import { PortRoles } from './NodePorts';
 import { TuringNode, TuringEdge } from '../../types/turing';
 import { StateNode } from './StateNode';
 import { OperationNode } from './OperationNode';
@@ -99,10 +101,23 @@ const TuringCanvasInner: React.FC = () => {
     const p = s.projects.find((proj) => proj.id === s.activeProjectId);
     return p ? p.edges : EMPTY_EDGES;
   });
-  const displayEdges = useMemo(
-    () => assignNearestEdgeHandles(nodes, edges),
-    [nodes, edges]
+  const view = useMemo(() => resolvePorts(nodes, edges), [nodes, edges]);
+  const displayEdges = useMemo(() => {
+    const wires = layoutWires(nodes, view.edges);
+    return view.edges.map((edge) => ({
+      ...edge,
+      data: {
+        ...(edge.data ?? { rules: [], mode: '5-tuple' as const }),
+        wire: wires.get(edge.id),
+      },
+    }));
+  },
+    [nodes, view]
   );
+  const selectedEdgeId = useTuringStore(s => s.selectedEdgeId);
+  const chosenEdge = edges.find(e => e.id === selectedEdgeId);
+  const portError = useTuringStore(s => s.portError);
+  const moved = React.useRef<'source' | 'target'>();
   const mode = useTuringStore((s) => {
     const p = s.projects.find((proj) => proj.id === s.activeProjectId);
     return p ? p.mode : '5-tuple';
@@ -196,7 +211,7 @@ const TuringCanvasInner: React.FC = () => {
 
   const handleReconnect = useCallback(
     (edge: TuringEdge, connection: Connection) => {
-      reconnectEdge(edge.id, connection);
+      reconnectEdge(edge.id, connection, moved.current);
     },
     [reconnectEdge]
   );
@@ -229,7 +244,24 @@ const TuringCanvasInner: React.FC = () => {
           <LayoutGrid className="h-3.5 w-3.5" />
           <span>Раскладка</span>
         </button>
+        {chosenEdge && (['source', 'target'] as const).map(end => (
+          <label key={end}>{end === 'source' ? 'Выход' : 'Вход'}{' '}
+            <select value={pinnedSide(chosenEdge, end) ?? ''} onChange={event => {
+              reconnectEdge(chosenEdge.id, {
+                source: chosenEdge.source, target: chosenEdge.target,
+                sourceHandle: chosenEdge.sourceHandle ?? null, targetHandle: chosenEdge.targetHandle ?? null,
+                [`${end}Handle`]: event.target.value || null,
+              }, end);
+            }}>
+              <option value="">Авто</option>
+              {sides.map((side, i) => <option key={side} value={side}>{['Слева', 'Справа', 'Сверху', 'Снизу'][i]}</option>)}
+            </select>
+          </label>
+        ))}
       </div>
+      {(portError || view.conflicts.size > 0) && <div role="alert" className="absolute bottom-4 left-14 z-20 rounded bg-amber-100 px-3 py-2 text-xs text-amber-950">
+        {portError ?? `Конфликт направлений (${[...view.conflicts].join(', ')}). Выберите переход и измените точку.`}
+      </div>}
       {isVTMCodeOpen && (
         <div className="absolute left-3 top-14 z-20 w-80 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-md dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 text-xs font-medium dark:border-zinc-800">
@@ -247,13 +279,14 @@ const TuringCanvasInner: React.FC = () => {
         </div>
       )}
 
-      <ReactFlow
+      <PortRoles.Provider value={view.roles}><ReactFlow
         nodes={nodes}
         edges={displayEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onReconnect={handleReconnect}
+        onReconnectStart={(_, __, fixed) => { moved.current = fixed === 'source' ? 'target' : 'source'; }}
         edgesReconnectable
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
@@ -305,7 +338,7 @@ const TuringCanvasInner: React.FC = () => {
           maskColor={theme === 'dark' ? 'rgba(9, 9, 11, 0.75)' : 'rgba(244, 244, 245, 0.75)'}
           className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-xs !rounded-md overflow-hidden"
         />
-      </ReactFlow>
+      </ReactFlow></PortRoles.Provider>
 
       {contextMenu && (
         <>

@@ -19,6 +19,7 @@ import {
   compileVTMCode,
   parseVTMCodeDetailed,
   assignNearestEdgeHandles,
+  findFeedbackEdgeIds,
 } from './transpiler';
 import { validateMachine } from './validator';
 import { exportToLaTeX, exportToPlantUML, exportToMarkdown, exportProjectToJSON, importProjectFromJSON } from './exporter';
@@ -181,6 +182,20 @@ store.applyAutoLayout();
 const projectAfterAutoLayout = useTuringStore.getState().getActiveProject();
 const q0Auto = projectAfterAutoLayout.nodes.find((n) => n.id === 'q0');
 assert(!!q0Auto, 'q0 exists after auto-layout');
+const wideCards = projectAfterAutoLayout.nodes.map(n => ({ ...n, measured: { width: 250, height: 116 } }));
+const autoLayoutHasNoNodeOverlaps = autoLayoutGraph(wideCards, projectAfterAutoLayout.edges).every((node, index, all) => {
+  const size = node.measured!;
+  return all.slice(index + 1).every((other) => {
+    const otherSize = other.measured!;
+    return (
+      node.position.x + size.width! <= other.position.x ||
+      other.position.x + otherSize.width! <= node.position.x ||
+      node.position.y + size.height! <= other.position.y ||
+      other.position.y + otherSize.height! <= node.position.y
+    );
+  });
+});
+assert(autoLayoutHasNoNodeOverlaps, 'Auto-layout keeps node cards from overlapping');
 const autoPos = { ...q0Auto!.position };
 
 // Now manually move q0 after auto-layout
@@ -681,6 +696,10 @@ assert(createdVtmProject.name === 'VTM Code Test', 'Store addVTMCode applies the
 assert(createdVtmProject.subMode === 'operational', 'Store addVTMCode creates an operational diagram');
 assert(createdVtmProject.nodes.length === 5, 'Store addVTMCode creates only operation nodes');
 assert(
+  Object.keys(createdVtmProject.initialTape).length === 0,
+  'Store addVTMCode creates a project with a blank tape'
+);
+assert(
   createdVtmProject.nodes.every((n) => {
     const opType = (n.data as any).opType;
     return opType !== 'START' && opType !== 'FINISH';
@@ -801,6 +820,10 @@ store.closeRuleModal();
 console.log('--- 20. Testing Project Functions and VTM Function Calls ---');
 store.createProject('4-tuple', 'operational', 'Function host');
 const functionHostId = useTuringStore.getState().activeProjectId;
+assert(
+  Object.keys(store.getActiveProject().initialTape).length === 0,
+  'New projects start with an empty tape'
+);
 const functionAdded = store.addProjectFunction(DEMO_PROJECT_3.id, 'K', { x: 420, y: 240 });
 assert(functionAdded, 'An existing operational project can be added as a function');
 const functionHost = store.getActiveProject();
@@ -871,8 +894,26 @@ const fanOutPorts = assignNearestEdgeHandles(
   ] as TuringEdge[]
 );
 assert(
-  fanOutPorts[0].sourceHandle !== fanOutPorts[1].sourceHandle,
-  'Edges from one node use different ports when their nearest port is occupied'
+  fanOutPorts[0].sourceHandle === fanOutPorts[1].sourceHandle,
+  'Edges to different neighbors may share the facing port instead of taking awkward detours'
+);
+const reciprocalNodes = [
+  { id: 'left', type: 'operationNode', position: { x: 0, y: 0 }, data: {} },
+  { id: 'right', type: 'operationNode', position: { x: 420, y: 0 }, data: {} },
+] as TuringNode[];
+const reciprocalEdges = [
+  { id: 'forward', source: 'left', target: 'right', data: {} },
+  { id: 'return', source: 'right', target: 'left', data: {} },
+] as TuringEdge[];
+const reciprocalPorts = assignNearestEdgeHandles(reciprocalNodes, reciprocalEdges);
+assert(
+  reciprocalPorts[0].sourceHandle !== reciprocalPorts[1].targetHandle &&
+    reciprocalPorts[0].targetHandle !== reciprocalPorts[1].sourceHandle,
+  'Opposite-direction wires between the same pair use distinct ports at both nodes'
+);
+assert(
+  findFeedbackEdgeIds(reciprocalNodes, reciprocalEdges).has('return'),
+  'Cycle return edges are identified for separate routing and auto-layout'
 );
 
 console.log('\nALL ENGINE AND SIMULATION TESTS PASSED SUCCESSFULLY! 🚀');

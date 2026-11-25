@@ -1,3 +1,4 @@
+import { restoreEdgePorts, pinnedSide, resolvePorts, nodeBox } from '../engine/ports';
 import React, { useEffect } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
@@ -29,8 +30,8 @@ import {
   convert4TupleTo5Tuple,
   compileOperationalDiagramTo4Tuples,
   buildEdgesFromRules,
-  assignNearestEdgeHandles,
   compileVTMCode,
+  findFeedbackEdgeIds,
 } from '../engine/transpiler';
 import { exportDiagramAsImage, ExportImageOptions } from '../utils/exportImage';
 import { INITIAL_PROJECTS } from './demoProjects';
@@ -66,27 +67,74 @@ export const ALPHABET_PRESETS: Record<string, { name: string; symbols: string[];
 };
 
 export function autoLayoutGraph(nodes: TuringNode[], edges: TuringEdge[], direction = 'LR'): TuringNode[] {
-  const g = new dagre.graphlib.Graph();
+  const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: direction, ranksep: 100, nodesep: 60 });
+  g.setGraph({
+    rankdir: direction,
+    ranksep: 125,
+    nodesep: 88,
+    edgesep: 36,
+    marginx: 36,
+    marginy: 36,
+  });
+  const feedbackEdges = findFeedbackEdgeIds(nodes, edges);
+  // A leaf whose only transition returns immediately to its parent is a
+  // side trip, not the next stage of the machine's forward path.
+  const branches = new Map<string, string>();
+  const neighbors = new Map(nodes.map(n => [n.id, new Set<string>()]));
+  for (const e of edges) if (e.source !== e.target) {
+    neighbors.get(e.source)?.add(e.target);
+    neighbors.get(e.target)?.add(e.source);
+  }
+  if (direction === 'LR') for (const e of edges) {
+    if (feedbackEdges.has(e.id) && neighbors.get(e.source)?.size === 1 &&
+        (neighbors.get(e.target)?.size ?? 0) > 1 && e.source !== e.target) branches.set(e.source, e.target);
+  }
 
   nodes.forEach((n) => {
-    g.setNode(n.id, { width: 140, height: 75 });
+    if (branches.has(n.id)) return;
+    const { width, height } = nodeBox(n);
+    g.setNode(n.id, { width, height });
   });
 
-  edges.forEach((e) => {
-    g.setEdge(e.source, e.target);
+  edges.forEach((e, index) => {
+    // Back-edges describe cycles, not forward flow. Leaving them out keeps a
+    // small return transition from pulling an entire branch into a wide loop.
+    if (feedbackEdges.has(e.id) || branches.has(e.source) || branches.has(e.target)) return;
+    g.setEdge(e.source, e.target, {}, `${e.id}-${index}`);
   });
 
   dagre.layout(g);
+  const placed = nodes.filter(n => !branches.has(n.id)).map(n => g.node(n.id));
+  const branchCount = new Map<string, number>();
+  for (const n of nodes) {
+    const parent = branches.get(n.id);
+    if (!parent) continue;
+    const hub = g.node(parent);
+    const count = branchCount.get(parent) ?? 0, sign = count % 2 ? 1 : -1;
+    branchCount.set(parent, count + 1);
+    const { width, height } = nodeBox(n);
+    const x = hub.x + hub.width / 2 + 62;
+    let y = hub.y + sign * ((height + hub.height) / 2 + 72);
+    for (const p of [...placed].sort((a, b) => sign * (a.y - b.y))) {
+      if (Math.abs(x - p.x) < (width + p.width) / 2 + 24 &&
+          Math.abs(y - p.y) < (height + p.height) / 2 + 48) {
+        y = p.y + sign * ((height + p.height) / 2 + 72);
+      }
+    }
+    const pos = { x, y, width, height };
+    g.setNode(n.id, pos);
+    placed.push(g.node(n.id));
+  }
 
   return nodes.map((n) => {
     const pos = g.node(n.id);
+    const { width, height } = nodeBox(n);
     return {
       ...n,
       position: {
-        x: pos ? pos.x - 70 : n.position.x,
-        y: pos ? pos.y - 37 : n.position.y,
+        x: pos ? pos.x - width / 2 : n.position.x,
+        y: pos ? pos.y - height / 2 : n.position.y,
       },
     };
   });
@@ -173,7 +221,8 @@ interface TuringStoreState {
   onNodesChange: (changes: NodeChange<TuringNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<TuringEdge>[]) => void;
   onConnect: (connection: Connection) => void;
-  reconnectEdge: (edgeId: string, connection: Connection) => void;
+  reconnectEdge: (edgeId: string, connection: Connection, moved?: 'source' | 'target') => void;
+  portError: string | null;
   addStateNode: (type: StateNodeType, label?: string, position?: { x: number; y: number }) => void;
   addOperationNode: (
     opType: OperationalNodeType,
@@ -309,9 +358,9 @@ export const useTuringStore = create<TuringStoreState>()(
               },
             })),
           })),
-          // Keep the current tape so the generated machine can be run at once.
-          initialTape: { ...project.initialTape },
-          initialHeadPosition: project.initialHeadPosition,
+          // New code projects start with a clean tape; users can load an input explicitly.
+          initialTape: {},
+          initialHeadPosition: 0,
           testCases: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -603,7 +652,7 @@ export const useTuringStore = create<TuringStoreState>()(
           rules5: [],
           rules4: [],
           subMachines: [],
-          initialTape: { 0: '1', 1: '0', 2: '1' },
+          initialTape: {},
           initialHeadPosition: 0,
           testCases: [],
           createdAt: Date.now(),
@@ -695,8 +744,7 @@ export const useTuringStore = create<TuringStoreState>()(
           }));
 
           const allNodes = [...project.nodes, ...auxTuringNodes];
-          const newEdges = assignNearestEdgeHandles(
-            allNodes,
+          const newEdges = restoreEdgePorts(
             buildEdgesFromRules(rules4, '4-tuple', project.subMode),
             project.edges
           );
@@ -711,8 +759,7 @@ export const useTuringStore = create<TuringStoreState>()(
         } else {
           // Convert 4-tuple -> 5-tuple
           const rules5 = convert4TupleTo5Tuple(project.rules4);
-          const newEdges = assignNearestEdgeHandles(
-            project.nodes,
+          const newEdges = restoreEdgePorts(
             buildEdgesFromRules(rules5, '5-tuple'),
             project.edges
           );
@@ -826,8 +873,7 @@ export const useTuringStore = create<TuringStoreState>()(
             project.edges,
             project.alphabet
           );
-          const edges = assignNearestEdgeHandles(
-            project.nodes,
+          const edges = restoreEdgePorts(
             buildEdgesFromRules(compiledRules, '4-tuple', 'state-graph'),
             project.edges
           );
@@ -1095,9 +1141,20 @@ export const useTuringStore = create<TuringStoreState>()(
         });
       },
 
+      portError: null,
       onConnect: (connection: Connection) => {
         if (!connection.source || !connection.target) return;
+        const project = get().getActiveProject();
+        const previous = project.edges.find(e => e.source === connection.source && e.target === connection.target);
+        const proposed = { ...connection, id: previous?.id ?? 'pending' };
+        const check = resolvePorts(project.nodes, [...project.edges.filter(e => e !== previous), proposed]);
+        if (check.conflicts.has(connection.source) || check.conflicts.has(connection.target)) {
+          set({ portError: 'Эта точка уже закреплена в другом направлении. Выберите свободную точку или измените подключение.' });
+          return;
+        }
+        set({ portError: null });
         get().openRuleModal({
+          edgeId: previous?.id,
           sourceNodeId: connection.source,
           targetNodeId: connection.target,
           sourceHandle: connection.sourceHandle,
@@ -1105,21 +1162,34 @@ export const useTuringStore = create<TuringStoreState>()(
         });
       },
 
-      reconnectEdge: (edgeId: string, connection: Connection) => {
+      reconnectEdge: (edgeId, connection, moved) => {
         if (!connection.source || !connection.target) return;
+        const project = get().getActiveProject();
+        const current = project.edges.find(e => e.id === edgeId);
+        if (!current) return;
+        const replacement: TuringEdge = {
+          ...current, source: connection.source, target: connection.target,
+          sourceHandle: moved === 'target' ? pinnedSide(current, 'source') : connection.sourceHandle,
+          targetHandle: moved === 'source' ? pinnedSide(current, 'target') : connection.targetHandle,
+          data: {
+            ...(current.data ?? { mode: project.mode, rules: [] }),
+            sourcePortMode: moved === 'target' ? current.data?.sourcePortMode : 'manual',
+            targetPortMode: moved === 'source' ? current.data?.targetPortMode : 'manual',
+          },
+        };
+        const check = resolvePorts(project.nodes, project.edges.map(e => e.id === edgeId ? replacement : e));
+        if (check.conflicts.has(connection.source) || check.conflicts.has(connection.target)) {
+          set({ portError: 'Невозможно совместить вход и выход в одной точке.' });
+          return;
+        }
+        set({ portError: null });
         get().updateActiveProject((prev) => {
           const oldEdge = prev.edges.find((edge) => edge.id === edgeId);
           if (!oldEdge) return prev;
 
           const edges = prev.edges.map((edge) =>
             edge.id === edgeId
-              ? {
-                  ...edge,
-                  source: connection.source!,
-                  target: connection.target!,
-                  sourceHandle: connection.sourceHandle,
-                  targetHandle: connection.targetHandle,
-                }
+              ? replacement
               : edge
           );
           const rules5 = prev.rules5.map((rule) =>
@@ -1252,8 +1322,7 @@ export const useTuringStore = create<TuringStoreState>()(
         get().updateActiveProject((prev) => {
           const rules5 = [...prev.rules5, newRule];
           const pendingConnection = get().ruleModalData;
-          const edges = assignNearestEdgeHandles(
-            prev.nodes,
+          const edges = restoreEdgePorts(
             buildEdgesFromRules(rules5, '5-tuple'),
             prev.edges
           ).map((edge) =>
@@ -1279,8 +1348,7 @@ export const useTuringStore = create<TuringStoreState>()(
       updateFiveTupleRule: (id, partial) => {
         get().updateActiveProject((prev) => {
           const rules5 = prev.rules5.map((r) => (r.id === id ? { ...r, ...partial } : r));
-          const edges = assignNearestEdgeHandles(
-            prev.nodes,
+          const edges = restoreEdgePorts(
             buildEdgesFromRules(rules5, '5-tuple'),
             prev.edges
           );
@@ -1291,8 +1359,7 @@ export const useTuringStore = create<TuringStoreState>()(
       deleteFiveTupleRule: (id) => {
         get().updateActiveProject((prev) => {
           const rules5 = prev.rules5.filter((r) => r.id !== id);
-          const edges = assignNearestEdgeHandles(
-            prev.nodes,
+          const edges = restoreEdgePorts(
             buildEdgesFromRules(rules5, '5-tuple'),
             prev.edges
           );
@@ -1308,8 +1375,7 @@ export const useTuringStore = create<TuringStoreState>()(
         get().updateActiveProject((prev) => {
           const rules4 = [...prev.rules4, newRule];
           const pendingConnection = get().ruleModalData;
-          const edges = assignNearestEdgeHandles(
-            prev.nodes,
+          const edges = restoreEdgePorts(
             buildEdgesFromRules(rules4, '4-tuple', prev.subMode),
             prev.edges
           ).map((edge) =>
@@ -1335,8 +1401,7 @@ export const useTuringStore = create<TuringStoreState>()(
       updateFourTupleRule: (id, partial) => {
         get().updateActiveProject((prev) => {
           const rules4 = prev.rules4.map((r) => (r.id === id ? { ...r, ...partial } : r));
-          const edges = assignNearestEdgeHandles(
-            prev.nodes,
+          const edges = restoreEdgePorts(
             buildEdgesFromRules(rules4, '4-tuple', prev.subMode),
             prev.edges
           );
@@ -1374,8 +1439,7 @@ export const useTuringStore = create<TuringStoreState>()(
           }
 
           const rules4 = prev.rules4.filter((r) => r.id !== id);
-          const edges = assignNearestEdgeHandles(
-            prev.nodes,
+          const edges = restoreEdgePorts(
             buildEdgesFromRules(rules4, '4-tuple', prev.subMode),
             prev.edges
           );
@@ -1642,7 +1706,8 @@ export function handleDebuggerKeyboardShortcut(
     (target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
       target.tagName === 'SELECT' ||
-      target.isContentEditable)
+      target.isContentEditable ||
+      target.closest?.('[data-tape-strip]'))
   ) {
     return false;
   }

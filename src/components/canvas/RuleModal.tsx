@@ -113,7 +113,6 @@ export const RuleModal: React.FC = () => {
       }
     } else {
       // Operational diagram: update edge rule item
-      const edge = project.edges.find((e) => e.id === ruleModalData.edgeId);
       const symbolCondition = isWildcard ? '*' : readSymbol;
 
       useTuringStore.getState().updateActiveProject((prev) => {
@@ -136,9 +135,13 @@ export const RuleModal: React.FC = () => {
                   ? rules.map((r) => (r.id === ruleModalData.ruleId ? newRuleItem : r))
                   : [...rules, newRuleItem];
                 return {
-                  ...e,
-                  data: {
-                    ...e.data,
+                   ...e,
+                   sourceHandle: ruleModalData.sourceHandle ?? e.sourceHandle,
+                   targetHandle: ruleModalData.targetHandle ?? e.targetHandle,
+                   data: {
+                     ...e.data,
+                     sourcePortMode: ruleModalData.sourceHandle ? 'manual' : e.data?.sourcePortMode,
+                     targetPortMode: ruleModalData.targetHandle ? 'manual' : e.data?.targetPortMode,
                     mode: e.data?.mode || prev.mode,
                     subMode: e.data?.subMode || prev.subMode,
                     rules: updatedRules,
@@ -156,7 +159,9 @@ export const RuleModal: React.FC = () => {
               {
                 id: edgeId,
                 source: ruleModalData.sourceNodeId!,
-                target: ruleModalData.targetNodeId!,
+                 target: ruleModalData.targetNodeId!,
+                 sourceHandle: ruleModalData.sourceHandle,
+                 targetHandle: ruleModalData.targetHandle,
                 type: 'customTransition',
                 data: {
                   mode: prev.mode,

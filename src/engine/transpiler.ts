@@ -1,3 +1,4 @@
+import { resolvePorts } from './ports';
 import {
   FiveTupleRule,
   FourTupleRule,
@@ -299,134 +300,40 @@ export function buildEdgesFromRules(
  * Choose facing handles for rule-table edges that don't yet have user-selected
  * handles. This avoids React Flow falling back to the first handle (top).
  */
-export function assignNearestEdgeHandles(
-  nodes: TuringNode[],
-  edges: TuringEdge[],
-  existingEdges: TuringEdge[] = []
-): TuringEdge[] {
-  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
-  const existingByPair = new Map(
-    existingEdges.map((edge) => [`${edge.source}->${edge.target}`, edge])
-  );
-  const occupied = new Map<string, Set<string>>();
-  const reserve = (nodeId: string, handleId?: string | null) => {
-    if (!handleId) return;
-    const handles = occupied.get(nodeId) ?? new Set<string>();
-    handles.add(handleId);
-    occupied.set(nodeId, handles);
+export function assignNearestEdgeHandles(nodes: TuringNode[], edges: TuringEdge[]) {
+  return resolvePorts(nodes, edges).edges;
+}
+
+/** Find DFS back-edges so auto-layout can route cycles without distorting the forward flow. */
+export function findFeedbackEdgeIds(nodes: TuringNode[], edges: TuringEdge[]): Set<string> {
+  const outgoing = new Map<string, TuringEdge[]>();
+  const incomingCount = new Map(nodes.map((node) => [node.id, 0]));
+  for (const edge of edges) {
+    outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge]);
+    incomingCount.set(edge.target, (incomingCount.get(edge.target) ?? 0) + 1);
+  }
+
+  const state = new Map<string, 0 | 1 | 2>();
+  const feedback = new Set<string>();
+  const visit = (nodeId: string) => {
+    state.set(nodeId, 1);
+    for (const edge of outgoing.get(nodeId) ?? []) {
+      const targetState = state.get(edge.target) ?? 0;
+      if (targetState === 1) feedback.add(edge.id);
+      else if (targetState === 0) visit(edge.target);
+    }
+    state.set(nodeId, 2);
   };
 
-  // Keep explicit/manual connections on their chosen handles and reserve
-  // those ports before auto-assigning the remaining edges.
-  for (const edge of edges) {
-    reserve(edge.source, edge.sourceHandle);
-    reserve(edge.target, edge.targetHandle);
-  }
-  for (const edge of existingEdges) {
-    reserve(edge.source, edge.sourceHandle);
-    reserve(edge.target, edge.targetHandle);
-  }
-
-  return edges.map((edge) => {
-    const oldEdge = existingByPair.get(`${edge.source}->${edge.target}`);
-    if (edge.sourceHandle && edge.targetHandle) return edge;
-    if (oldEdge?.sourceHandle && oldEdge.targetHandle) {
-      return {
-        ...edge,
-        sourceHandle: edge.sourceHandle ?? oldEdge.sourceHandle,
-        targetHandle: edge.targetHandle ?? oldEdge.targetHandle,
-      };
-    }
-
-    const sourceNode = nodeMap.get(edge.source);
-    const targetNode = nodeMap.get(edge.target);
-    if (!sourceNode || !targetNode) return edge;
-
-    if (edge.source === edge.target) {
-      reserve(edge.source, 'top');
-      reserve(edge.target, 'right');
-      return {
-        ...edge,
-        sourceHandle: edge.sourceHandle ?? 'top',
-        targetHandle: edge.targetHandle ?? 'right',
-      };
-    }
-
-    const sourceMeasured = sourceNode as TuringNode & {
-      width?: number;
-      height?: number;
-      measured?: { width?: number; height?: number };
-    };
-    const targetMeasured = targetNode as TuringNode & {
-      width?: number;
-      height?: number;
-      measured?: { width?: number; height?: number };
-    };
-    const sourceWidth =
-      sourceMeasured.measured?.width ?? sourceMeasured.width ??
-      (sourceNode.type === 'stateNode' ? 210 : 230);
-    const sourceHeight =
-      sourceMeasured.measured?.height ?? sourceMeasured.height ?? 80;
-    const targetWidth =
-      targetMeasured.measured?.width ?? targetMeasured.width ??
-      (targetNode.type === 'stateNode' ? 210 : 230);
-    const targetHeight =
-      targetMeasured.measured?.height ?? targetMeasured.height ?? 80;
-    const sourceCenter = {
-      x: sourceNode.position.x + sourceWidth / 2,
-      y: sourceNode.position.y + sourceHeight / 2,
-    };
-    const targetCenter = {
-      x: targetNode.position.x + targetWidth / 2,
-      y: targetNode.position.y + targetHeight / 2,
-    };
-    const portPoints = (center: { x: number; y: number }, width: number, height: number) => [
-      { id: 'top', x: center.x, y: center.y - height / 2 },
-      { id: 'right', x: center.x + width / 2, y: center.y },
-      { id: 'bottom', x: center.x, y: center.y + height / 2 },
-      { id: 'left', x: center.x - width / 2, y: center.y },
-    ];
-    const nearestFreePort = (
-      nodeId: string,
-      ports: ReturnType<typeof portPoints>,
-      other: { x: number; y: number },
-      preferred?: string | null
-    ) => {
-      const taken = occupied.get(nodeId) ?? new Set<string>();
-      const ranked = preferred
-        ? [...ports].sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred))
-        : [...ports].sort(
-            (a, b) =>
-              Math.hypot(a.x - other.x, a.y - other.y) -
-              Math.hypot(b.x - other.x, b.y - other.y)
-          );
-      return ranked.find((port) => !taken.has(port.id))?.id ?? ranked[0].id;
-    };
-    const sourcePort = edge.sourceHandle
-      ? edge.sourceHandle
-      : nearestFreePort(
-          edge.source,
-          portPoints(sourceCenter, sourceWidth, sourceHeight),
-          targetCenter,
-          oldEdge?.sourceHandle
-        );
-    const targetPort = edge.targetHandle
-      ? edge.targetHandle
-      : nearestFreePort(
-          edge.target,
-          portPoints(targetCenter, targetWidth, targetHeight),
-          sourceCenter,
-          oldEdge?.targetHandle
-        );
-    reserve(edge.source, sourcePort);
-    reserve(edge.target, targetPort);
-
-    return {
-      ...edge,
-      sourceHandle: sourcePort,
-      targetHandle: targetPort,
-    };
+  const starts = nodes.filter((node) => {
+    const data = node.data as { opType?: string; stateType?: string };
+    return data.opType === 'START' || data.stateType === 'initial';
   });
+  const roots = nodes.filter((node) => (incomingCount.get(node.id) ?? 0) === 0);
+  for (const node of [...starts, ...roots, ...nodes]) {
+    if (!state.has(node.id)) visit(node.id);
+  }
+  return feedback;
 }
 
 /**
@@ -602,6 +509,8 @@ export function compileVTMCodeToNodesAndEdges(
       targetHandle: 'left',
       type: 'customTransition',
         data: {
+          sourcePortMode: 'auto',
+          targetPortMode: 'auto',
           mode: '4-tuple',
           subMode: 'operational',
           rules: [
