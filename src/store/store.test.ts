@@ -85,6 +85,36 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
     expect(restoredPos.y).toBe(origPos.y);
   });
 
+  it('deletes a selected group and connected rules in one undo step', () => {
+    const project = useTuringStore.getState().getActiveProject();
+    const ids = project.nodes.slice(0, 2).map((node) => node.id);
+    useTuringStore.getState().onNodesChange(ids.map((id) => ({ id, type: 'select', selected: true })));
+    const key = new KeyboardEvent('keydown', { key: 'Delete', code: 'Delete', cancelable: true });
+    expect(handleDebuggerKeyboardShortcut(key)).toBe(true);
+    const result = useTuringStore.getState().getActiveProject();
+    expect(result.nodes.some((node) => ids.includes(node.id))).toBe(false);
+    expect(result.edges.some((edge) => ids.includes(edge.source) || ids.includes(edge.target))).toBe(false);
+    expect(result.rules5.some((rule) => ids.includes(rule.fromState) || ids.includes(rule.toState))).toBe(false);
+    expect(useTuringStore.getState().editorUndoStack).toHaveLength(1);
+    useTuringStore.getState().undoEditor();
+    expect(useTuringStore.getState().getActiveProject().edges).toHaveLength(project.edges.length);
+  });
+
+  it('clears the canvas while preserving the project and restores it with undo', () => {
+    const before = useTuringStore.getState().getActiveProject();
+    useTuringStore.getState().clearCanvas();
+    const cleared = useTuringStore.getState().getActiveProject();
+    expect(cleared.id).toBe(before.id);
+    expect(cleared.nodes).toEqual([]);
+    expect(cleared.edges).toEqual([]);
+    expect(cleared.rules4).toEqual([]);
+    expect(cleared.rules5).toEqual([]);
+    expect(cleared.alphabet).toEqual(before.alphabet);
+    expect(cleared.testCases).toEqual(before.testCases);
+    useTuringStore.getState().undoEditor();
+    expect(useTuringStore.getState().getActiveProject().nodes).toHaveLength(before.nodes.length);
+  });
+
   it('handles Ctrl+Z and Ctrl+Shift+Z keyboard shortcuts for editor history', () => {
     const store = useTuringStore.getState();
     const initialCount = store.getActiveProject().nodes.length;

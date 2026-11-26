@@ -125,6 +125,8 @@ export interface GraphSlice {
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   updateEdgeLabelOffset: (edgeId: string, labelOffset: { x: number; y: number }) => void;
   deleteNode: (id: string) => void;
+  deleteGraphElements: (nodeIds: string[], edgeIds: string[]) => void;
+  clearCanvas: () => void;
   applyAutoLayout: () => void;
 }
 

@@ -645,6 +645,56 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
       }));
     },
 
+    deleteGraphElements: (nodeIds, edgeIds) => {
+      const project = get().getActiveProject();
+      const removedNodes = new Set(nodeIds);
+      const removedEdges = project.edges.filter((edge) =>
+        edgeIds.includes(edge.id) || removedNodes.has(edge.source) || removedNodes.has(edge.target)
+      );
+      if (!project.nodes.some((node) => removedNodes.has(node.id)) && removedEdges.length === 0) return;
+      get().pushEditorSnapshot();
+      const removedEdgeIds = new Set(removedEdges.map((edge) => edge.id));
+      const removedRuleIds = new Set(removedEdges.flatMap((edge) => (edge.data?.rules ?? []).map((rule) => rule.id)));
+      const removedPairs = new Set(removedEdges.map((edge) => `${edge.source}->${edge.target}`));
+      get().updateActiveProject((prev) => {
+        const nodes = prev.nodes.filter((node) => !removedNodes.has(node.id));
+        const edges = prev.edges.filter((edge) => !removedEdgeIds.has(edge.id));
+        const keepRule = (rule: { id: string; fromState: string; toState: string }) =>
+          !removedNodes.has(rule.fromState) && !removedNodes.has(rule.toState) &&
+          !removedRuleIds.has(rule.id) && !removedPairs.has(`${rule.fromState}->${rule.toState}`);
+        return {
+          ...prev,
+          nodes,
+          edges,
+          rules5: prev.rules5.filter(keepRule),
+          rules4: prev.subMode === 'operational'
+            ? compileOperationalDiagramTo4Tuples(nodes, edges, prev.alphabet, prev.subMachines)
+            : prev.rules4.filter(keepRule),
+        };
+      });
+      set({
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        runtime: initRuntimeState(get().getActiveProject()),
+        isRunning: false,
+        portError: null,
+      });
+    },
+
+    clearCanvas: () => {
+      const project = get().getActiveProject();
+      if (!project.nodes.length && !project.edges.length && !project.rules4.length && !project.rules5.length) return;
+      get().pushEditorSnapshot();
+      get().updateActiveProject((prev) => ({ ...prev, nodes: [], edges: [], rules4: [], rules5: [] }));
+      set({
+        selectedNodeId: null,
+        selectedEdgeId: null,
+        runtime: initRuntimeState(get().getActiveProject()),
+        isRunning: false,
+        portError: null,
+      });
+    },
+
     deleteNode: (id: string) => {
       get().pushEditorSnapshot();
       get().updateActiveProject((prev) => {

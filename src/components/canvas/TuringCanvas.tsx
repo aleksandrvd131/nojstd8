@@ -39,6 +39,8 @@ import {
   Undo2,
   Redo2,
   Code2,
+  MousePointer2,
+  Trash2,
 } from 'lucide-react';
 
 const nodeTypes = {
@@ -97,6 +99,8 @@ const TuringCanvasInner: React.FC = () => {
   const setSelectedNodeId = useTuringStore((s) => s.setSelectedNodeId);
   const setSelectedEdgeId = useTuringStore((s) => s.setSelectedEdgeId);
   const deleteNode = useTuringStore((s) => s.deleteNode);
+  const clearCanvas = useTuringStore((s) => s.clearCanvas);
+  const openConfirmModal = useTuringStore((s) => s.openConfirmModal);
 
   const addStateNode = useTuringStore((s) => s.addStateNode);
   const addOperationNode = useTuringStore((s) => s.addOperationNode);
@@ -146,7 +150,11 @@ const TuringCanvasInner: React.FC = () => {
     return p?.alphabet.symbols[0] || '1';
   });
 
-  const { fitView, screenToFlowPosition } = useReactFlow();
+  const { fitView, screenToFlowPosition, getNodes } = useReactFlow();
+  const canvasRef = React.useRef<HTMLDivElement>(null);
+  const selectionCleanup = React.useRef<(() => void) | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<CanvasContextMenuState | null>(null);
   const [isVTMCodeOpen, setIsVTMCodeOpen] = useState(false);
   const [functionDialogOpen, setFunctionDialogOpen] = useState(false);
@@ -211,11 +219,68 @@ const TuringCanvasInner: React.FC = () => {
   // Re-fit view when switching active project
   useEffect(() => {
     setContextMenu(null);
+    selectionCleanup.current?.();
+    setSelectionRect(null);
     const timer = setTimeout(() => {
       fitView({ duration: 300, padding: 0.2 });
     }, 50);
     return () => clearTimeout(timer);
   }, [activeProjectId, fitView]);
+
+  useEffect(() => () => selectionCleanup.current?.(), []);
+
+  const startRectangleSelection = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!selectionMode || event.button !== 2) return;
+    const target = event.target as HTMLElement;
+    if (!target.closest('.react-flow__pane') && !target.closest('.react-flow__background')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu(null);
+    const bounds = canvasRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const start = { x: event.clientX, y: event.clientY };
+    const updateRect = (x: number, y: number) => setSelectionRect({
+      x: Math.min(start.x, x) - bounds.left,
+      y: Math.min(start.y, y) - bounds.top,
+      width: Math.abs(x - start.x),
+      height: Math.abs(y - start.y),
+    });
+    updateRect(start.x, start.y);
+    const onMove = (move: MouseEvent) => updateRect(move.clientX, move.clientY);
+    const cleanup = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      selectionCleanup.current = null;
+    };
+    const onUp = (up: MouseEvent) => {
+      if (up.button !== 2) return;
+      const a = screenToFlowPosition(start);
+      const b = screenToFlowPosition({ x: up.clientX, y: up.clientY });
+      const left = Math.min(a.x, b.x);
+      const right = Math.max(a.x, b.x);
+      const top = Math.min(a.y, b.y);
+      const bottom = Math.max(a.y, b.y);
+      const changes = getNodes().map((node) => ({
+        type: 'select' as const,
+        id: node.id,
+        selected: Math.abs(up.clientX - start.x) >= 3 && Math.abs(up.clientY - start.y) >= 3 &&
+          node.position.x < right && node.position.x + (node.measured?.width ?? node.width ?? 0) > left &&
+          node.position.y < bottom && node.position.y + (node.measured?.height ?? node.height ?? 0) > top,
+      }));
+      onNodesChange(changes);
+      onEdgesChange(useTuringStore.getState().getActiveProject().edges.filter((edge) => edge.selected).map((edge) => ({
+        type: 'select' as const, id: edge.id, selected: false,
+      })));
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
+      setSelectionRect(null);
+      cleanup();
+    };
+    selectionCleanup.current?.();
+    selectionCleanup.current = cleanup;
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   const handleAutoLayout = useCallback(() => {
     applyAutoLayout();
@@ -239,9 +304,37 @@ const TuringCanvasInner: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-full bg-zinc-100 dark:bg-black overflow-hidden">
+    <div ref={canvasRef} onMouseDownCapture={startRectangleSelection} className="relative w-full h-full bg-zinc-100 dark:bg-black overflow-hidden">
       {/* Precision Floating Action Bar */}
       <div className="absolute top-2.5 left-2.5 z-10 flex flex-wrap items-center gap-1 p-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 shadow-md text-xs">
+        <button
+          type="button"
+          aria-pressed={selectionMode}
+          onClick={() => { setSelectionMode((value) => !value); setContextMenu(null); }}
+          title="Режим выделения: выделите узлы правой кнопкой мыши, затем перетащите левой"
+          className={`flex items-center gap-1 rounded border px-2 py-1 font-medium ${selectionMode ? 'border-sky-500 bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200' : 'border-zinc-200 bg-zinc-100 text-zinc-800 hover:bg-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'}`}
+        >
+          <MousePointer2 className="h-3.5 w-3.5" /> Выделение
+        </button>
+        <button
+          type="button"
+          disabled={!nodes.length && !edges.length}
+          onClick={() => {
+            const projectId = activeProjectId;
+            openConfirmModal({
+              title: 'Очистить холст?',
+              message: 'Все узлы, связи и правила текущей схемы будут удалены. Проект, алфавит и тесты сохранятся. Действие можно отменить.',
+              confirmLabel: 'Очистить',
+              onConfirm: () => {
+                if (useTuringStore.getState().activeProjectId === projectId) clearCanvas();
+              },
+            });
+          }}
+          title="Очистить холст"
+          className="flex items-center gap-1 rounded border border-zinc-200 bg-zinc-100 px-2 py-1 font-medium text-zinc-700 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-rose-950 dark:hover:text-rose-300"
+        >
+          <Trash2 className="h-3.5 w-3.5" /> Очистить
+        </button>
         {mode === '5-tuple' || subMode === 'state-graph' ? (
           <>
             <button
@@ -413,6 +506,17 @@ const TuringCanvasInner: React.FC = () => {
           </>
         )}
       </div>
+      {selectionMode && (
+        <div className="pointer-events-none absolute bottom-3 left-14 z-10 rounded border border-zinc-300 bg-white/95 px-2 py-1 text-[11px] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-zinc-300">
+          ПКМ — выделить · ЛКМ — переместить · Delete — удалить
+        </div>
+      )}
+      {selectionRect && (
+        <div
+          className="pointer-events-none absolute z-30 border border-sky-500 bg-sky-500/15"
+          style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }}
+        />
+      )}
       {(portError || view.conflicts.size > 0) && <div role="alert" className="absolute bottom-4 left-14 z-20 rounded bg-amber-100 px-3 py-2 text-xs text-amber-950">
         {portError ?? `Конфликт направлений (${[...view.conflicts].join(', ')}). Выберите переход и измените точку.`}
       </div>}
@@ -452,7 +556,7 @@ const TuringCanvasInner: React.FC = () => {
         connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: '#2563eb', strokeWidth: 2.5 }}
         deleteKeyCode={null}
-        onPaneContextMenu={handlePaneContextMenu}
+        onPaneContextMenu={selectionMode ? (event) => event.preventDefault() : handlePaneContextMenu}
         onNodeContextMenu={handleNodeContextMenu}
         onEdgeContextMenu={(event) => event.preventDefault()}
         onMoveStart={() => setContextMenu(null)}

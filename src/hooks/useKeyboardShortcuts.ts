@@ -50,6 +50,15 @@ export function handleDebuggerKeyboardShortcut(
     e.key === 'Backspace';
 
   if (isDeleteKey && !e.ctrlKey && !e.metaKey && !e.altKey && !hasBlockingOverlay) {
+    const project = store.getActiveProject();
+    const selectedNodes = project.nodes.filter((node) => node.selected).map((node) => node.id);
+    const selectedEdges = project.edges.filter((edge) => edge.selected).map((edge) => edge.id);
+    if ((selectedNodes.length || selectedEdges.length) && !store.selectedNodeId && !store.selectedEdgeId ||
+        selectedNodes.length > 1 || (selectedNodes.length > 0 && selectedEdges.length > 0)) {
+      e.preventDefault();
+      store.deleteGraphElements(selectedNodes, selectedEdges);
+      return true;
+    }
     if (store.selectedNodeId) {
       e.preventDefault();
       store.deleteNode(store.selectedNodeId);
