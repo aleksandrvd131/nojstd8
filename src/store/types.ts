@@ -13,6 +13,7 @@ import {
   StateNodeType,
   OperationalNodeType,
   RuntimeStats,
+  SubMachine,
 } from '../types/turing';
 import { RuntimeState } from '../engine/simulator';
 import { ExportImageOptions } from '../utils/exportImage';
@@ -26,6 +27,7 @@ export interface EditorSnapshot {
   edges: TuringEdge[];
   rules5: FiveTupleRule[];
   rules4: FourTupleRule[];
+  subMachines?: SubMachine[];
 }
 
 export interface RuleModalData {
@@ -88,12 +90,14 @@ export interface ProjectSlice {
   updateProjectDescription: (id: string, description: string) => void;
   deleteProject: (id: string) => void;
   importProject: (project: ProjectSession) => void;
+  addVTMCode: (code: string, name?: string) => boolean;
   exportDiagramImage: (options?: ExportImageOptions) => Promise<string | null>;
 }
 
 export interface GraphSlice {
   editorUndoStack: EditorSnapshot[];
   editorRedoStack: EditorSnapshot[];
+  portError: string | null;
 
   pushEditorSnapshot: (snapshot?: EditorSnapshot) => void;
   clearEditorHistory: () => void;
@@ -103,8 +107,20 @@ export interface GraphSlice {
   onNodesChange: (changes: NodeChange<TuringNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<TuringEdge>[]) => void;
   onConnect: (connection: Connection) => void;
-  addStateNode: (type: StateNodeType, label?: string) => void;
-  addOperationNode: (opType: OperationalNodeType, label?: string, symbolToWrite?: string) => void;
+  reconnectEdge: (edgeId: string, connection: Connection, moved?: 'source' | 'target') => void;
+  addStateNode: (type: StateNodeType, label?: string, position?: { x: number; y: number }) => void;
+  addOperationNode: (
+    opType: OperationalNodeType,
+    label?: string,
+    symbolToWrite?: string,
+    position?: { x: number; y: number }
+  ) => void;
+  insertVTMCode: (code: string) => boolean;
+  addProjectFunction: (
+    sourceProjectId: string,
+    code: string,
+    position?: { x: number; y: number }
+  ) => boolean;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   updateEdgeLabelOffset: (edgeId: string, labelOffset: { x: number; y: number }) => void;
   deleteNode: (id: string) => void;

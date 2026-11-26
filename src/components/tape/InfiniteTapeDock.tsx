@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
+import { tokenizeTapeInput } from '../../engine/simulator';
 import {
   RotateCcw,
   Save,
@@ -25,12 +26,13 @@ export const InfiniteTapeDock: React.FC = () => {
 
   const [inputWord, setInputWord] = useState('');
   const [editingPos, setEditingPos] = useState<number | null>(null);
-
-  // Visible window range around head
+  const [tapeWarning, setTapeWarning] = useState('');
   const [rangeOffset, setRangeOffset] = useState(0);
+  const tapeStripRef = useRef<HTMLDivElement>(null);
+
   const head = runtime.headPosition;
 
-  // Auto-center view when head moves outside current window
+  // Auto-center view when head moves
   useEffect(() => {
     setRangeOffset(0);
   }, [head]);
@@ -45,8 +47,47 @@ export const InfiniteTapeDock: React.FC = () => {
   const handleApplyInputWord = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputWord.length > 0) {
+      const tokens = tokenizeTapeInput(inputWord, project.alphabet);
+      const invalid = tokens.find((symbol) => !allSymbols.includes(symbol));
+      if (invalid) {
+        setTapeWarning(`Символ «${invalid}» отсутствует в алфавите.`);
+        return;
+      }
       setTapeString(inputWord, 0);
       setInputWord('');
+      setTapeWarning('');
+    }
+  };
+
+  const handleTapeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      setEditingPos(null);
+      setHeadPosition(head + (event.key === 'ArrowLeft' ? -1 : 1));
+      setTapeWarning('');
+      tapeStripRef.current?.focus();
+      return;
+    }
+
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+      event.preventDefault();
+      setTapeCell(head, blankSymbol);
+      setEditingPos(null);
+      setTapeWarning('');
+      tapeStripRef.current?.focus();
+      return;
+    }
+
+    if (event.key.length === 1) {
+      event.preventDefault();
+      if (allSymbols.includes(event.key)) {
+        setTapeCell(head, event.key);
+        setEditingPos(null);
+        setTapeWarning('');
+        tapeStripRef.current?.focus();
+      } else {
+        setTapeWarning(`Символ «${event.key}» отсутствует в алфавите.`);
+      }
     }
   };
 
@@ -56,11 +97,14 @@ export const InfiniteTapeDock: React.FC = () => {
       <div className="px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 bg-zinc-50/60 dark:bg-zinc-950/60">
         {/* Quick word input */}
         <form onSubmit={handleApplyInputWord} className="flex items-center gap-1.5 flex-1 max-w-sm">
-          <input
-            type="text"
-            placeholder="Входное слово на ленту (напр. 10110)..."
-            value={inputWord}
-            onChange={(e) => setInputWord(e.target.value)}
+              <input
+                type="text"
+                placeholder="Входное слово на ленту (напр. 10110)..."
+                value={inputWord}
+                onChange={(e) => {
+                  setInputWord(e.target.value);
+                  setTapeWarning('');
+                }}
             className="flex-1 px-2.5 py-1 text-xs font-mono rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-sky-500"
           />
           <button
@@ -118,6 +162,7 @@ export const InfiniteTapeDock: React.FC = () => {
               onClick={() => setRangeOffset((r) => r - 5)}
               className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-l transition-colors"
               title="Прокрутить ленту влево (−5 ячеек)"
+              aria-label="Прокрутить ленту влево"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </button>
@@ -136,6 +181,7 @@ export const InfiniteTapeDock: React.FC = () => {
               onClick={() => setRangeOffset((r) => r + 5)}
               className="p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded-r transition-colors"
               title="Прокрутить ленту вправо (+5 ячеек)"
+              aria-label="Прокрутить ленту вправо"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
@@ -143,15 +189,26 @@ export const InfiniteTapeDock: React.FC = () => {
         </div>
       </div>
 
+      {tapeWarning && (
+        <p role="status" className="px-4 pt-1 text-[11px] text-rose-600 dark:text-rose-400">
+          {tapeWarning}
+        </p>
+      )}
+
       {/* CAD Precision Tape Strip */}
       <div
+        ref={tapeStripRef}
+        data-tape-strip
+        tabIndex={0}
+        onKeyDown={handleTapeKeyDown}
         onWheel={(e) => {
           const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
           if (delta !== 0) {
             setRangeOffset((r) => r + (delta > 0 ? 1 : -1));
           }
         }}
-        className="py-2.5 px-4 overflow-x-auto flex items-center justify-center gap-1 bg-zinc-100/60 dark:bg-zinc-950"
+        aria-label="Лента Тьюринга. Стрелки перемещают головку, Backspace очищает ячейку, символ алфавита записывает его."
+        className="py-2.5 px-4 overflow-x-auto flex items-center justify-center gap-1 bg-zinc-100/60 dark:bg-zinc-950 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sky-500/50"
       >
         {visibleCells.map((pos) => {
           const isHead = pos === head;
@@ -190,6 +247,7 @@ export const InfiniteTapeDock: React.FC = () => {
                     onChange={(e) => {
                       setTapeCell(pos, e.target.value);
                       setEditingPos(null);
+                      tapeStripRef.current?.focus();
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') {

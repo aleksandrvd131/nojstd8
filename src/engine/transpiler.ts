@@ -1,3 +1,4 @@
+import { resolvePorts, pinnedSide } from './ports';
 import {
   FiveTupleRule,
   FourTupleRule,
@@ -6,6 +7,8 @@ import {
   OperationNodeData,
   AlphabetConfig,
   FourTupleSubMode,
+  OperationalNodeType,
+  ParsedCodeOp,
   SubMachine,
 } from '../types/turing';
 
@@ -344,8 +347,8 @@ export function buildEdgesFromRules(
       id: edgeId,
       source: item.source,
       target: item.target,
-      ...(existing?.sourceHandle ? { sourceHandle: existing.sourceHandle } : {}),
-      ...(existing?.targetHandle ? { targetHandle: existing.targetHandle } : {}),
+      ...(existing ? { sourceHandle: pinnedSide(existing, 'source') } : {}),
+      ...(existing ? { targetHandle: pinnedSide(existing, 'target') } : {}),
       type: 'customTransition',
       data: {
         rules: item.rules,
@@ -353,10 +356,274 @@ export function buildEdgesFromRules(
         subMode,
         isBiDirectional: hasReverse,
         offsetDirection: item.source < item.target ? 1 : -1,
+        ...(existing?.data?.sourcePortMode ? { sourcePortMode: existing.data.sourcePortMode } : {}),
+        ...(existing?.data?.targetPortMode ? { targetPortMode: existing.data.targetPortMode } : {}),
         ...(existing?.data?.labelOffset ? { labelOffset: existing.data.labelOffset } : {}),
       },
     });
   }
 
   return edges;
+}
+
+/**
+ * Choose facing handles for rule-table edges that don't yet have user-selected
+ * handles. This avoids React Flow falling back to the first handle (top).
+ */
+export function assignNearestEdgeHandles(nodes: TuringNode[], edges: TuringEdge[]) {
+  return resolvePorts(nodes, edges).edges;
+}
+
+/** Find DFS back-edges so auto-layout can route cycles without distorting the forward flow. */
+export function findFeedbackEdgeIds(nodes: TuringNode[], edges: TuringEdge[]): Set<string> {
+  const outgoing = new Map<string, TuringEdge[]>();
+  const incomingCount = new Map(nodes.map((node) => [node.id, 0]));
+  for (const edge of edges) {
+    outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge]);
+    incomingCount.set(edge.target, (incomingCount.get(edge.target) ?? 0) + 1);
+  }
+
+  const state = new Map<string, 0 | 1 | 2>();
+  const feedback = new Set<string>();
+  const visit = (nodeId: string) => {
+    state.set(nodeId, 1);
+    for (const edge of outgoing.get(nodeId) ?? []) {
+      const targetState = state.get(edge.target) ?? 0;
+      if (targetState === 1) feedback.add(edge.id);
+      else if (targetState === 0) visit(edge.target);
+    }
+    state.set(nodeId, 2);
+  };
+
+  const starts = nodes.filter((node) => {
+    const data = node.data as { opType?: string; stateType?: string };
+    return data.opType === 'START' || data.stateType === 'initial';
+  });
+  const roots = nodes.filter((node) => (incomingCount.get(node.id) ?? 0) === 0);
+  for (const node of [...starts, ...roots, ...nodes]) {
+    if (!state.has(node.id)) visit(node.id);
+  }
+  return feedback;
+}
+
+/**
+ * Result of parsing VTM shorthand code.
+ */
+export interface ParseVTMCodeResult {
+  ops: ParsedCodeOp[];
+  errors: string[];
+}
+
+/**
+ * Human-readable label for one parsed operation.
+ */
+export function getVTMCodeOpLabel(op: ParsedCodeOp): string {
+  if (op.opType === 'COMPLEX_MACHINE') {
+    return op.functionCode || op.subMachineName || 'K';
+  }
+  switch (op.opType) {
+    case 'SHIFT_R':
+      return 'r';
+    case 'SHIFT_L':
+      return 'l';
+    case 'SEARCH_R':
+      return 'R';
+    case 'SEARCH_L':
+      return 'L';
+    case 'WRITE_SYM':
+      return `[${op.symbolToWrite ?? '?'}]`;
+    default:
+      return op.opType;
+  }
+}
+
+/**
+ * Parse shorthand VTM code like "r^3 R 0" into parsed operations.
+ *
+ * Supported syntax (space separated):
+ *   - r / r^n : shift right once / n times
+ *   - l / l^n : shift left once / n times
+ *   - R / R^n : search right until a blank cell (repeatable)
+ *   - L / L^n : search left until a blank cell (repeatable)
+ *   - <symbol> / <symbol>^n : write a symbol from the alphabet (repeatable)
+ *
+ * Example: "r^3 R 0" = shift right 3 times, then search right to the
+ * next blank cell, then write 0.
+ */
+export function parseVTMCodeDetailed(
+  code: string,
+  alphabet: AlphabetConfig,
+  functions: SubMachine[] = []
+): ParseVTMCodeResult {
+  const ops: ParsedCodeOp[] = [];
+  const errors: string[] = [];
+  const symbols = new Set([...alphabet.symbols, alphabet.blankSymbol]);
+
+  const tokens = code.trim().split(/\s+/).filter(Boolean);
+
+  for (const token of tokens) {
+    const repeatMatch = token.match(/^(.*)\^(\d+)$/);
+    const base = repeatMatch ? repeatMatch[1] : token;
+    const count = repeatMatch ? Number(repeatMatch[2]) : 1;
+
+    if (!base) {
+      errors.push(`Некорректный токен: "${token}"`);
+      continue;
+    }
+
+    if (!Number.isFinite(count) || count < 1) {
+      errors.push(`Некорректное число повторений в "${token}" (нужно >= 1)`);
+      continue;
+    }
+
+    const functionDefinition = !repeatMatch
+      ? functions.find((candidate) => candidate.code === base)
+      : undefined;
+    if (functionDefinition) {
+      ops.push({
+        opType: 'COMPLEX_MACHINE',
+        subMachineId: functionDefinition.id,
+        subMachineName: functionDefinition.name,
+        functionCode: functionDefinition.code,
+      });
+      continue;
+    }
+
+    let opType: OperationalNodeType | null = null;
+    switch (base) {
+      case 'r':
+        opType = 'SHIFT_R';
+        break;
+      case 'l':
+        opType = 'SHIFT_L';
+        break;
+      case 'R':
+        opType = 'SEARCH_R';
+        break;
+      case 'L':
+        opType = 'SEARCH_L';
+        break;
+      default:
+        break;
+    }
+
+    if (opType) {
+      for (let i = 0; i < count; i++) {
+        ops.push({ opType });
+      }
+      continue;
+    }
+
+    if (symbols.has(base)) {
+      for (let i = 0; i < count; i++) {
+        ops.push({ opType: 'WRITE_SYM', symbolToWrite: base });
+      }
+      continue;
+    }
+
+    errors.push(
+      `Неизвестная операция или символ: "${token}". ` +
+        `Доступные символы: ${[...symbols].join(', ')}`
+    );
+  }
+
+  return { ops, errors };
+}
+
+/**
+ * Backwards-compatible helper that returns only the parsed operations.
+ */
+export function parseVTMCode(code: string, alphabet: AlphabetConfig): ParsedCodeOp[] {
+  return parseVTMCodeDetailed(code, alphabet).ops;
+}
+
+/**
+ * Compile parsed VTM code operations into a fragment of an operational diagram.
+ *
+ * Only operation nodes and the transitions between them are generated.
+ * START and FINISH are intentionally not created: the fragment can be
+ * inserted into an existing diagram and connected manually.
+ */
+export function compileVTMCodeToNodesAndEdges(
+  parsedOps: ParsedCodeOp[],
+  alphabet: AlphabetConfig,
+  options: { idPrefix?: string; functions?: SubMachine[] } = {}
+): { nodes: TuringNode[]; edges: TuringEdge[]; rules4: FourTupleRule[] } {
+  const nodes: TuringNode[] = [];
+  const edges: TuringEdge[] = [];
+  const prefix = options.idPrefix ?? 'vtm';
+
+  parsedOps.forEach((op, index) => {
+    const nodeId = `${prefix}_op_${index}`;
+
+    nodes.push({
+      id: nodeId,
+      type: 'operationNode',
+      position: { x: 100 + index * 180, y: 150 },
+      data: {
+        label: getVTMCodeOpLabel(op),
+        opType: op.opType,
+        symbolToWrite: op.symbolToWrite,
+        subMachineId: op.subMachineId,
+        subMachineName: op.subMachineName,
+      },
+    });
+
+    if (index > 0) {
+      const previousId = `${prefix}_op_${index - 1}`;
+      edges.push({
+      id: `e_${previousId}_${nodeId}`,
+      source: previousId,
+      target: nodeId,
+      sourceHandle: 'right',
+      targetHandle: 'left',
+      type: 'customTransition',
+        data: {
+          sourcePortMode: 'auto',
+          targetPortMode: 'auto',
+          mode: '4-tuple',
+          subMode: 'operational',
+          rules: [
+            {
+              id: `r_${previousId}_${nodeId}`,
+              readSymbol: '*',
+              isWildcard: true,
+            },
+          ],
+        },
+      });
+    }
+  });
+
+  const rules4 = compileOperationalDiagramTo4Tuples(nodes, edges, alphabet, options.functions);
+
+  return { nodes, edges, rules4 };
+}
+
+/**
+ * Full compilation: parse VTM code and return project-ready data.
+ */
+export function compileVTMCode(
+  code: string,
+  alphabet: AlphabetConfig,
+  options: { name?: string; idPrefix?: string; functions?: SubMachine[] } = {}
+) {
+  const { ops, errors } = parseVTMCodeDetailed(code, alphabet, options.functions);
+  const { nodes, edges, rules4 } = compileVTMCodeToNodesAndEdges(ops, alphabet, {
+    idPrefix: options.idPrefix,
+    functions: options.functions,
+  });
+
+  const projectName =
+    options.name?.trim() ||
+    `VTM: ${code.replace(/\s+/g, ' ').trim()}`;
+
+  return {
+    nodes,
+    edges,
+    rules4,
+    parsedOps: ops,
+    errors,
+    projectName,
+  };
 }

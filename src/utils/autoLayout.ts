@@ -1,5 +1,7 @@
 import dagre from 'dagre';
 import { TuringNode, TuringEdge, OperationNodeData, StateNodeData } from '../types/turing';
+import { nodeBox } from '../engine/ports';
+import { findFeedbackEdgeIds } from '../engine/transpiler';
 
 export function computeNonOverlappingPosition(existingNodes: TuringNode[]): { x: number; y: number } {
   if (existingNodes.length === 0) return { x: 120, y: 150 };
@@ -59,27 +61,90 @@ export function autoLayoutGraph(
   edges: TuringEdge[],
   direction = 'LR'
 ): TuringNode[] {
-  const g = new dagre.graphlib.Graph();
+  const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: direction, ranksep: 100, nodesep: 60 });
-
-  nodes.forEach((n) => {
-    g.setNode(n.id, { width: 140, height: 75 });
+  g.setGraph({
+    rankdir: direction,
+    ranksep: 125,
+    nodesep: 88,
+    edgesep: 36,
+    marginx: 36,
+    marginy: 36,
   });
 
-  edges.forEach((e) => {
-    g.setEdge(e.source, e.target);
+  const feedbackEdges = findFeedbackEdgeIds(nodes, edges);
+  // A leaf whose only transition returns immediately to its parent is a
+  // side trip, not the next stage of the machine's forward path.
+  const branches = new Map<string, string>();
+  const neighbors = new Map(nodes.map((n) => [n.id, new Set<string>()]));
+  for (const e of edges) {
+    if (e.source !== e.target) {
+      neighbors.get(e.source)?.add(e.target);
+      neighbors.get(e.target)?.add(e.source);
+    }
+  }
+  if (direction === 'LR') {
+    for (const e of edges) {
+      if (
+        feedbackEdges.has(e.id) &&
+        neighbors.get(e.source)?.size === 1 &&
+        (neighbors.get(e.target)?.size ?? 0) > 1 &&
+        e.source !== e.target
+      ) {
+        branches.set(e.source, e.target);
+      }
+    }
+  }
+
+  nodes.forEach((n) => {
+    if (branches.has(n.id)) return;
+    const { width, height } = nodeBox(n);
+    g.setNode(n.id, { width, height });
+  });
+
+  edges.forEach((e, index) => {
+    // Back-edges describe cycles, not forward flow. Leaving them out keeps a
+    // small return transition from pulling an entire branch into a wide loop.
+    if (feedbackEdges.has(e.id) || branches.has(e.source) || branches.has(e.target)) return;
+    g.setEdge(e.source, e.target, {}, `${e.id}-${index}`);
   });
 
   dagre.layout(g);
 
+  const placed = nodes.filter((n) => !branches.has(n.id)).map((n) => g.node(n.id));
+  const branchCount = new Map<string, number>();
+  for (const n of nodes) {
+    const parent = branches.get(n.id);
+    if (!parent) continue;
+    const hub = g.node(parent);
+    if (!hub) continue;
+    const count = branchCount.get(parent) ?? 0;
+    const sign = count % 2 ? 1 : -1;
+    branchCount.set(parent, count + 1);
+    const { width, height } = nodeBox(n);
+    const x = hub.x + hub.width / 2 + 62;
+    let y = hub.y + sign * ((height + hub.height) / 2 + 72);
+    for (const p of [...placed].sort((a, b) => sign * (a.y - b.y))) {
+      if (
+        Math.abs(x - p.x) < (width + p.width) / 2 + 24 &&
+        Math.abs(y - p.y) < (height + p.height) / 2 + 48
+      ) {
+        y = p.y + sign * ((height + p.height) / 2 + 72);
+      }
+    }
+    const pos = { x, y, width, height };
+    g.setNode(n.id, pos);
+    placed.push(g.node(n.id));
+  }
+
   return nodes.map((n) => {
     const pos = g.node(n.id);
+    const { width, height } = nodeBox(n);
     return {
       ...n,
       position: {
-        x: pos ? pos.x - 70 : n.position.x,
-        y: pos ? pos.y - 37 : n.position.y,
+        x: pos ? pos.x - width / 2 : n.position.x,
+        y: pos ? pos.y - height / 2 : n.position.y,
       },
     };
   });

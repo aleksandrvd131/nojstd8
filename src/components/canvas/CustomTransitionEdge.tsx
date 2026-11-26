@@ -1,4 +1,5 @@
 import React, { memo, useState, useRef, useEffect } from 'react';
+import { roundedWire, type Wire } from '../../engine/wireLayout';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -37,6 +38,7 @@ export const CustomTransitionEdge = memo(
     const subMode = edgeData?.subMode;
     const isActive = runtimeActiveEdgeId === id;
 
+    const wire = edgeData?.wire as Wire | undefined;
     const isSelfLoop = source === target;
     const isBiDirectional = !!edgeData?.isBiDirectional;
 
@@ -44,7 +46,15 @@ export const CustomTransitionEdge = memo(
     let labelX = 0;
     let labelY = 0;
 
-    if (isSelfLoop) {
+    if (wire && !isSelfLoop) {
+      edgePath = roundedWire([
+        { x: sourceX, y: sourceY },
+        ...wire.points.slice(1, -1),
+        { x: targetX, y: targetY },
+      ]);
+      labelX = wire.label.x;
+      labelY = wire.label.y;
+    } else if (isSelfLoop) {
       const loopHeight = 70;
       const loopWidth = 40;
       if (sourcePosition === Position.Bottom) {
@@ -73,15 +83,11 @@ export const CustomTransitionEdge = memo(
         labelY = sourceY - loopHeight + 8;
       }
     } else if (isBiDirectional) {
-      // Offset curved path for bi-directional transitions
       const dx = targetX - sourceX;
       const dy = targetY - sourceY;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
       const nx = -dy / len;
       const ny = dx / len;
-      // Normal vector (nx, ny) naturally reverses when source and target swap.
-      // Using a constant curvature offsets each directed edge to its own right side,
-      // avoiding duplicate offsetDir inversion that caused bidirectional edges to overlap.
       const curvature = 36;
 
       const midX = (sourceX + targetX) / 2 + nx * curvature;
@@ -206,83 +212,88 @@ export const CustomTransitionEdge = memo(
           }}
         />
 
-        {showActionWindow && (
-          <EdgeLabelRenderer>
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX + offset.x}px,${labelY + offset.y}px)`,
+              pointerEvents: 'all',
+            }}
+            className="flex items-center justify-center z-20"
+          >
             <div
-              style={{
-                position: 'absolute',
-                transform: `translate(-50%, -50%) translate(${labelX + offset.x}px,${labelY + offset.y}px)`,
-                pointerEvents: 'all',
-              }}
-              className="flex flex-col items-center gap-1 z-20"
+              onMouseDown={handleDragStart}
+              className={clsx(
+                'flex max-w-[240px] flex-wrap items-center justify-center gap-1 rounded-full border bg-white/95 px-1.5 py-1 shadow-md backdrop-blur-sm dark:bg-zinc-900/95 cursor-move select-none',
+                showActionWindow
+                  ? 'border-sky-400 dark:border-sky-500'
+                  : 'border-zinc-200/90 dark:border-zinc-700'
+              )}
+              title="Окно действий перехода. Перетащите для смещения"
             >
-              <div
-                onMouseDown={handleDragStart}
-                className="flex flex-wrap items-center justify-center gap-1 max-w-[240px] p-1.5 rounded-md bg-white/95 dark:bg-zinc-900/95 border border-sky-400 dark:border-sky-500 shadow-md cursor-move select-none"
-                title="Окно действий перехода. Перетащите для смещения"
-              >
+              {showActionWindow && (
                 <div
                   className="flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-grab active:cursor-grabbing px-0.5"
                   title="Перетащите окно действий"
                 >
                   <GripVertical className="w-3 h-3" />
                 </div>
-                {rules.map((rule) => {
-                  let text = '';
-                  if (mode === '5-tuple') {
-                    const write = rule.writeSymbol ?? rule.readSymbol;
-                    const move = rule.move ?? 'N';
-                    text = `${rule.readSymbol} → ${write}, ${move}`;
-                  } else if (subMode === 'operational') {
-                    const isWild =
-                      rule.isWildcard === true ||
-                      (rule.isWildcard === undefined && !rule.isComplement && rule.readSymbol === '*');
-                    text = isWild
-                      ? '*'
-                      : rule.isComplement
-                      ? `¬${rule.readSymbol}`
-                      : rule.readSymbol;
-                  } else {
-                    text = `${rule.readSymbol} : ${rule.command || 'N'}`;
-                  }
+              )}
+              {rules.map((rule) => {
+                let text = '';
+                if (mode === '5-tuple') {
+                  const write = rule.writeSymbol ?? rule.readSymbol;
+                  const move = rule.move ?? 'N';
+                  text = `${rule.readSymbol} → ${write}, ${move}`;
+                } else if (subMode === 'operational') {
+                  const isWild =
+                    rule.isWildcard === true ||
+                    (rule.isWildcard === undefined && !rule.isComplement && rule.readSymbol === '*');
+                  text = isWild
+                    ? '*'
+                    : rule.isComplement
+                    ? `¬${rule.readSymbol}`
+                    : rule.readSymbol;
+                } else {
+                  text = `${rule.readSymbol} : ${rule.command || 'N'}`;
+                }
 
-                  return (
-                    <div
-                      key={rule.id}
-                      onClick={(e) => handleRuleClick(e, rule)}
-                      className={clsx(
-                        'group/pill flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium cursor-pointer transition-colors',
-                        isActive
-                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/40 font-bold'
-                          : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700'
-                      )}
-                      title="Нажмите для редактирования правила"
+                return (
+                  <div
+                    key={rule.id}
+                    onClick={(e) => handleRuleClick(e, rule)}
+                    className={clsx(
+                      'group/pill flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono font-medium cursor-pointer transition-colors',
+                      isActive
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 font-bold'
+                        : 'bg-zinc-100 text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
+                    )}
+                    title="Нажмите для редактирования правила"
+                  >
+                    <span>{text}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteRule(e, rule.id)}
+                      className="opacity-0 group-hover/pill:opacity-100 text-zinc-400 hover:text-rose-500 transition-opacity ml-0.5"
+                      title="Удалить правило"
                     >
-                      <span>{text}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteRule(e, rule.id)}
-                        className="opacity-0 group-hover/pill:opacity-100 text-zinc-400 hover:text-rose-500 transition-opacity ml-0.5"
-                        title="Удалить правило"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  );
-                })}
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
 
-                <button
-                  type="button"
-                  onClick={handleAddRuleClick}
-                  className="flex items-center justify-center w-5 h-5 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-                  title="Добавить правило перехода"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleAddRuleClick}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                title="Добавить правило перехода"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
             </div>
-          </EdgeLabelRenderer>
-        )}
+          </div>
+        </EdgeLabelRenderer>
       </>
     );
   }

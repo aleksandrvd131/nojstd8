@@ -11,7 +11,8 @@ export function handleDebuggerKeyboardShortcut(
     (target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
       target.tagName === 'SELECT' ||
-      target.isContentEditable)
+      target.isContentEditable ||
+      target.closest?.('[data-tape-strip]'))
   ) {
     return false;
   }
@@ -34,7 +35,7 @@ export function handleDebuggerKeyboardShortcut(
     }
   }
 
-  // Delete: Remove currently selected node (when no modal/drawer blocks the editor)
+  // Delete / Backspace: Remove currently selected node or edge (when no modal/drawer blocks the editor)
   const hasBlockingOverlay =
     store.isRuleModalOpen ||
     store.isAlphabetModalOpen ||
@@ -42,18 +43,26 @@ export function handleDebuggerKeyboardShortcut(
     store.isSessionDrawerOpen ||
     store.confirmModal !== null;
 
-  if (
-    e.code === 'Delete' &&
-    !e.ctrlKey &&
-    !e.metaKey &&
-    !e.altKey &&
-    !hasBlockingOverlay &&
-    store.selectedNodeId
-  ) {
-    e.preventDefault();
-    store.deleteNode(store.selectedNodeId);
-    store.setSelectedNodeId(null);
-    return true;
+  const isDeleteKey =
+    e.code === 'Delete' ||
+    e.code === 'Backspace' ||
+    e.key === 'Delete' ||
+    e.key === 'Backspace';
+
+  if (isDeleteKey && !e.ctrlKey && !e.metaKey && !e.altKey && !hasBlockingOverlay) {
+    if (store.selectedNodeId) {
+      e.preventDefault();
+      store.deleteNode(store.selectedNodeId);
+      store.setSelectedNodeId(null);
+      store.setSelectedEdgeId(null);
+      return true;
+    }
+    if (store.selectedEdgeId) {
+      e.preventDefault();
+      store.onEdgesChange([{ type: 'remove', id: store.selectedEdgeId }]);
+      store.setSelectedEdgeId(null);
+      return true;
+    }
   }
 
   if (!store.keyboardShortcutsEnabled) return false;

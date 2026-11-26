@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { Handle, Position, NodeProps } from '@xyflow/react';
+import { NodeProps } from '@xyflow/react';
+import { NodePorts } from './NodePorts';
 import { OperationNodeData } from '../../types/turing';
 import { useTuringStore } from '../../store/useTuringStore';
 import {
@@ -103,32 +104,7 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
         isFinish && 'outline outline-1 outline-offset-2 outline-rose-500/50'
       )}
     >
-      {/* Precision Port Handles */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        id="top"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
-      />
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="right"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="bottom"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
-      />
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="left"
-        className="!w-2 !h-2 !bg-zinc-400 dark:!bg-zinc-500 !border !border-white dark:!border-zinc-900 !rounded-sm transition-colors hover:!bg-sky-500"
-      />
-
+      <NodePorts id={id} />
       <div className="flex items-center gap-2">
         <div className="flex-shrink-0">{badge.icon}</div>
         <div className="flex-1 min-w-0">

@@ -1,5 +1,6 @@
 import { ProjectSession, TuringMode, FourTupleSubMode } from '../../types/turing';
 import { initRuntimeState } from '../../engine/simulator';
+import { compileVTMCode } from '../../engine/transpiler';
 import { exportDiagramAsImage, ExportImageOptions } from '../../utils/exportImage';
 import { INITIAL_PROJECTS } from '../demoProjects';
 import { ProjectSlice, SliceCreator } from '../types';
@@ -34,6 +35,7 @@ export const createProjectSlice: SliceCreator<ProjectSlice> = (set, get) => ({
         selectedNodeId: null,
         selectedEdgeId: null,
         isRunning: false,
+        portError: null,
         editorUndoStack: [],
         editorRedoStack: [],
       });
@@ -86,7 +88,7 @@ export const createProjectSlice: SliceCreator<ProjectSlice> = (set, get) => ({
       rules5: [],
       rules4: [],
       subMachines: [],
-      initialTape: { 0: '1', 1: '0', 2: '1' },
+      initialTape: {},
       initialHeadPosition: 0,
       testCases: [],
       createdAt: Date.now(),
@@ -101,6 +103,7 @@ export const createProjectSlice: SliceCreator<ProjectSlice> = (set, get) => ({
       selectedNodeId: null,
       selectedEdgeId: null,
       isRunning: false,
+      portError: null,
       editorUndoStack: [],
       editorRedoStack: [],
     }));
@@ -124,6 +127,7 @@ export const createProjectSlice: SliceCreator<ProjectSlice> = (set, get) => ({
       selectedNodeId: null,
       selectedEdgeId: null,
       isRunning: false,
+      portError: null,
       editorUndoStack: [],
       editorRedoStack: [],
     }));
@@ -158,6 +162,7 @@ export const createProjectSlice: SliceCreator<ProjectSlice> = (set, get) => ({
       selectedNodeId: null,
       selectedEdgeId: null,
       isRunning: false,
+      portError: null,
       editorUndoStack: [],
       editorRedoStack: [],
     });
@@ -176,9 +181,71 @@ export const createProjectSlice: SliceCreator<ProjectSlice> = (set, get) => ({
       selectedNodeId: null,
       selectedEdgeId: null,
       isRunning: false,
+      portError: null,
       editorUndoStack: [],
       editorRedoStack: [],
     }));
+  },
+
+  addVTMCode: (code: string, name?: string) => {
+    const project = get().getActiveProject();
+    const alphabet = project.alphabet;
+
+    const result = compileVTMCode(code, alphabet, {
+      name,
+      functions: project.subMachines,
+    });
+
+    if (result.errors.length > 0 || result.parsedOps.length === 0) {
+      return false;
+    }
+
+    const newId = `project_vtm_${Date.now()}`;
+    const newProject: ProjectSession = {
+      id: newId,
+      name: name?.trim() || result.projectName,
+      description: `Операционная диаграмма ВТМ, сгенерированная из кода: "${code}"`,
+      mode: '4-tuple',
+      subMode: 'operational',
+      alphabet: { ...alphabet, symbols: [...alphabet.symbols] },
+      nodes: result.nodes,
+      edges: result.edges,
+      rules4: result.rules4,
+      rules5: [],
+      subMachines: project.subMachines.map((machine) => ({
+        ...machine,
+        nodes: machine.nodes.map((node) => ({ ...node, data: { ...node.data } })),
+        edges: machine.edges.map((edge) => ({
+          ...edge,
+          data: {
+            ...edge.data,
+            mode: edge.data?.mode ?? '4-tuple',
+            subMode: edge.data?.subMode ?? 'operational',
+            rules: [...(edge.data?.rules ?? [])],
+          },
+        })),
+      })),
+      initialTape: {},
+      initialHeadPosition: 0,
+      testCases: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    set((state) => ({
+      projects: [newProject, ...state.projects],
+      activeProjectId: newId,
+      runtime: initRuntimeState(newProject),
+      isSessionDrawerOpen: false,
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      isRunning: false,
+      portError: null,
+      editorUndoStack: [],
+      editorRedoStack: [],
+    }));
+
+    return true;
   },
 
   exportDiagramImage: async (options?: ExportImageOptions) => {

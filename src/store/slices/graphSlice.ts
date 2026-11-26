@@ -5,8 +5,14 @@ import {
   TuringEdge,
   StateNodeType,
   OperationalNodeType,
+  OperationNodeData,
+  SubMachine,
 } from '../../types/turing';
-import { compileOperationalDiagramTo4Tuples } from '../../engine/transpiler';
+import {
+  compileOperationalDiagramTo4Tuples,
+  compileVTMCode,
+} from '../../engine/transpiler';
+import { pinnedSide, resolvePorts } from '../../engine/ports';
 import { initRuntimeState } from '../../engine/simulator';
 import { autoLayoutGraph, computeNonOverlappingPosition } from '../../utils/autoLayout';
 import { EditorSnapshot, GraphSlice, SliceCreator } from '../types';
@@ -23,6 +29,7 @@ function captureEditorSnapshot(project: ProjectSession): EditorSnapshot {
       edges: project.edges,
       rules5: project.rules5,
       rules4: project.rules4,
+      subMachines: project.subMachines,
     })
   );
 }
@@ -37,6 +44,7 @@ function applyEditorSnapshot(prev: ProjectSession, snapshot: EditorSnapshot): Pr
     edges: snapshot.edges,
     rules5: snapshot.rules5,
     rules4: snapshot.rules4,
+    subMachines: snapshot.subMachines ?? prev.subMachines,
   };
 }
 
@@ -47,6 +55,7 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
   return {
     editorUndoStack: [],
     editorRedoStack: [],
+    portError: null,
 
     pushEditorSnapshot: (snapshot?: EditorSnapshot) => {
       const snap = snapshot ?? captureEditorSnapshot(get().getActiveProject());
@@ -85,6 +94,7 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
         isRunning: false,
         selectedNodeId: null,
         selectedEdgeId: null,
+        portError: null,
       });
     },
 
@@ -105,6 +115,7 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
         isRunning: false,
         selectedNodeId: null,
         selectedEdgeId: null,
+        portError: null,
       });
     },
 
@@ -221,7 +232,31 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
 
     onConnect: (connection: Connection) => {
       if (!connection.source || !connection.target) return;
+      const project = get().getActiveProject();
+      const previous = project.edges.find(
+        (e) => e.source === connection.source && e.target === connection.target
+      );
+      const proposed: TuringEdge = {
+        ...connection,
+        source: connection.source,
+        target: connection.target,
+        id: previous?.id ?? 'pending',
+        data: previous?.data ?? { mode: project.mode, subMode: project.subMode, rules: [] },
+      };
+      const check = resolvePorts(project.nodes, [
+        ...project.edges.filter((e) => e !== previous),
+        proposed,
+      ]);
+      if (check.conflicts.has(connection.source) || check.conflicts.has(connection.target)) {
+        set({
+          portError:
+            'Эта точка уже закреплена в другом направлении. Выберите свободную точку или измените подключение.',
+        });
+        return;
+      }
+      set({ portError: null });
       get().openRuleModal({
+        edgeId: previous?.id,
         sourceNodeId: connection.source,
         targetNodeId: connection.target,
         sourceHandle: connection.sourceHandle,
@@ -229,7 +264,77 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
       });
     },
 
-    addStateNode: (type: StateNodeType, label?: string) => {
+    reconnectEdge: (edgeId: string, connection: Connection, moved?: 'source' | 'target') => {
+      if (!connection.source || !connection.target) return;
+      const project = get().getActiveProject();
+      const current = project.edges.find((e) => e.id === edgeId);
+      if (!current) return;
+
+      const replacement: TuringEdge = {
+        ...current,
+        source: connection.source,
+        target: connection.target,
+        sourceHandle: moved === 'target' ? pinnedSide(current, 'source') : connection.sourceHandle,
+        targetHandle: moved === 'source' ? pinnedSide(current, 'target') : connection.targetHandle,
+        data: {
+          ...(current.data ?? { mode: project.mode, rules: [] }),
+          sourcePortMode:
+            moved === 'target'
+              ? current.data?.sourcePortMode
+              : connection.sourceHandle
+              ? 'manual'
+              : 'auto',
+          targetPortMode:
+            moved === 'source'
+              ? current.data?.targetPortMode
+              : connection.targetHandle
+              ? 'manual'
+              : 'auto',
+        },
+      };
+
+      const check = resolvePorts(
+        project.nodes,
+        project.edges.map((e) => (e.id === edgeId ? replacement : e))
+      );
+      if (check.conflicts.has(connection.source) || check.conflicts.has(connection.target)) {
+        set({ portError: 'Невозможно совместить вход и выход в одной точке.' });
+        return;
+      }
+
+      get().pushEditorSnapshot();
+      set({ portError: null });
+
+      get().updateActiveProject((prev) => {
+        const oldEdge = prev.edges.find((edge) => edge.id === edgeId);
+        if (!oldEdge) return prev;
+
+        const edges = prev.edges.map((edge) => (edge.id === edgeId ? replacement : edge));
+        const rules5 = prev.rules5.map((rule) =>
+          rule.fromState === oldEdge.source && rule.toState === oldEdge.target
+            ? { ...rule, fromState: connection.source!, toState: connection.target! }
+            : rule
+        );
+        let rules4 = prev.rules4.map((rule) =>
+          rule.fromState === oldEdge.source && rule.toState === oldEdge.target
+            ? { ...rule, fromState: connection.source!, toState: connection.target! }
+            : rule
+        );
+
+        if (prev.subMode === 'operational') {
+          rules4 = compileOperationalDiagramTo4Tuples(
+            prev.nodes,
+            edges,
+            prev.alphabet,
+            prev.subMachines
+          );
+        }
+
+        return { ...prev, edges, rules5, rules4 };
+      });
+    },
+
+    addStateNode: (type: StateNodeType, label?: string, position?: { x: number; y: number }) => {
       get().pushEditorSnapshot();
       const project = get().getActiveProject();
       let idx = project.nodes.length;
@@ -240,7 +345,7 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
         newId = type === 'halt' ? `q_halt_${idx}` : `q${idx}`;
       }
 
-      const pos = computeNonOverlappingPosition(project.nodes);
+      const pos = position ?? computeNonOverlappingPosition(project.nodes);
       const newNode: TuringNode = {
         id: newId,
         type: 'stateNode',
@@ -257,7 +362,12 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
       }));
     },
 
-    addOperationNode: (opType: OperationalNodeType, label?: string, symbolToWrite?: string) => {
+    addOperationNode: (
+      opType: OperationalNodeType,
+      label?: string,
+      symbolToWrite?: string,
+      position?: { x: number; y: number }
+    ) => {
       get().pushEditorSnapshot();
       const project = get().getActiveProject();
       let count = project.nodes.length;
@@ -268,7 +378,7 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
         newId = `op_${opType.toLowerCase()}_${count}`;
       }
 
-      const pos = computeNonOverlappingPosition(project.nodes);
+      const pos = position ?? computeNonOverlappingPosition(project.nodes);
       const newNode: TuringNode = {
         id: newId,
         type: 'operationNode',
@@ -284,6 +394,201 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
         ...prev,
         nodes: [...prev.nodes, newNode],
       }));
+    },
+
+    insertVTMCode: (code: string) => {
+      const project = get().getActiveProject();
+      if (project.subMode !== 'operational') {
+        return false;
+      }
+
+      const result = compileVTMCode(code, project.alphabet, {
+        idPrefix: `vtm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        functions: project.subMachines,
+      });
+
+      if (result.errors.length > 0 || result.parsedOps.length === 0) {
+        return false;
+      }
+
+      get().pushEditorSnapshot();
+      const existingNodes = project.nodes;
+      const startX = existingNodes.length
+        ? Math.max(...existingNodes.map((n) => n.position.x)) + 220
+        : 100;
+      const shiftX = startX - 100;
+
+      const insertedNodes = result.nodes.map((node) => ({
+        ...node,
+        position: { x: node.position.x + shiftX, y: node.position.y },
+      }));
+
+      const nodes = [...existingNodes, ...insertedNodes];
+      const edges = [...project.edges, ...result.edges];
+      const rules4 = compileOperationalDiagramTo4Tuples(
+        nodes,
+        edges,
+        project.alphabet,
+        project.subMachines
+      );
+
+      get().updateActiveProject((prev) => ({
+        ...prev,
+        nodes,
+        edges,
+        rules4,
+      }));
+
+      set({
+        selectedNodeId: insertedNodes[0]?.id ?? null,
+        selectedEdgeId: null,
+      });
+
+      return true;
+    },
+
+    addProjectFunction: (
+      sourceProjectId: string,
+      code: string,
+      position?: { x: number; y: number }
+    ) => {
+      const { projects, activeProjectId } = get();
+      const parent = get().getActiveProject();
+      const source = projects.find((candidate) => candidate.id === sourceProjectId);
+      const functionCode = code.trim().toUpperCase();
+
+      if (
+        !source ||
+        source.id === activeProjectId ||
+        source.subMode !== 'operational' ||
+        !/^[A-Z]$/.test(functionCode) ||
+        ['R', 'L'].includes(functionCode) ||
+        parent.alphabet.symbols.includes(functionCode) ||
+        parent.subMachines.some((machine) => machine.code === functionCode) ||
+        source.nodes.length === 0
+      ) {
+        return false;
+      }
+
+      get().pushEditorSnapshot();
+
+      const functionId = `function_${source.id}_${Date.now().toString(36)}`;
+      const sourceNodes = source.nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        data: { ...node.data },
+      }));
+      const sourceEdges: TuringEdge[] = source.edges.map((edge) => ({
+        ...edge,
+        data: {
+          ...edge.data,
+          mode: edge.data?.mode ?? source.mode,
+          subMode: edge.data?.subMode ?? source.subMode,
+          rules: [...(edge.data?.rules ?? [])],
+        },
+      }));
+      let startNodeId = sourceNodes.find(
+        (node) => (node.data as OperationNodeData).opType === 'START'
+      )?.id;
+      let finishNodeId = sourceNodes.find(
+        (node) => (node.data as OperationNodeData).opType === 'FINISH'
+      )?.id;
+
+      if (!startNodeId) {
+        startNodeId = `${functionId}_start`;
+        sourceNodes.unshift({
+          id: startNodeId,
+          type: 'operationNode',
+          position: { x: 0, y: 0 },
+          data: { label: 'START', opType: 'START' },
+        });
+        const firstNode = source.nodes[0];
+        sourceEdges.push({
+          id: `${functionId}_entry`,
+          source: startNodeId,
+          target: firstNode.id,
+          sourceHandle: 'right',
+          targetHandle: 'left',
+          type: 'customTransition',
+          data: {
+            mode: '4-tuple',
+            subMode: 'operational',
+            rules: [{ id: `${functionId}_entry_rule`, readSymbol: '*', isWildcard: true }],
+          },
+        });
+      }
+
+      if (!finishNodeId) {
+        finishNodeId = `${functionId}_finish`;
+        sourceNodes.push({
+          id: finishNodeId,
+          type: 'operationNode',
+          position: { x: 900, y: 0 },
+          data: { label: 'FINISH', opType: 'FINISH' },
+        });
+        const nodesWithOutgoing = new Set(sourceEdges.map((edge) => edge.source));
+        const terminalNodes = source.nodes.filter(
+          (node) =>
+            (node.data as OperationNodeData).opType !== 'FINISH' &&
+            !nodesWithOutgoing.has(node.id)
+        );
+        for (const node of terminalNodes) {
+          sourceEdges.push({
+            id: `${functionId}_exit_${node.id}`,
+            source: node.id,
+            target: finishNodeId,
+            sourceHandle: 'right',
+            targetHandle: 'left',
+            type: 'customTransition',
+            data: {
+              mode: '4-tuple',
+              subMode: 'operational',
+              rules: [{ id: `${functionId}_exit_rule_${node.id}`, readSymbol: '*', isWildcard: true }],
+            },
+          });
+        }
+      }
+
+      const sourceMachine: SubMachine = {
+        id: functionId,
+        name: source.name,
+        code: functionCode,
+        description: source.description,
+        nodes: sourceNodes,
+        edges: sourceEdges,
+        rules4: compileOperationalDiagramTo4Tuples(
+          sourceNodes,
+          sourceEdges,
+          source.alphabet,
+          source.subMachines
+        ),
+      };
+
+      let suffix = parent.nodes.length;
+      let nodeId = `op_function_${functionCode}_${suffix}`;
+      const existingIds = new Set(parent.nodes.map((node) => node.id));
+      while (existingIds.has(nodeId)) nodeId = `op_function_${functionCode}_${++suffix}`;
+
+      const functionNode: TuringNode = {
+        id: nodeId,
+        type: 'operationNode',
+        position: position ?? computeNonOverlappingPosition(parent.nodes),
+        data: {
+          label: functionCode,
+          opType: 'COMPLEX_MACHINE',
+          subMachineId: functionId,
+          subMachineName: source.name,
+          description: `Функция ${functionCode}: ${source.name}`,
+        },
+      };
+
+      get().updateActiveProject((prev) => ({
+        ...prev,
+        subMachines: [...prev.subMachines, sourceMachine],
+        nodes: [...prev.nodes, functionNode],
+      }));
+      set({ selectedNodeId: nodeId, selectedEdgeId: null });
+      return true;
     },
 
     updateNodeData: (id: string, data: Record<string, unknown>) => {

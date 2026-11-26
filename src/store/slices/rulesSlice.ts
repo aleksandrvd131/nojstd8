@@ -438,9 +438,32 @@ export const createRulesSlice: SliceCreator<RulesSlice> = (set, get) => ({
       ...rule,
       id: `r5_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     };
+    const pendingConnection = get().ruleModalData;
     get().updateActiveProject((prev) => {
       const rules5 = [...prev.rules5, newRule];
-      const edges = buildEdgesFromRules(rules5, '5-tuple', 'state-graph', prev.edges);
+      const edges = buildEdgesFromRules(rules5, '5-tuple', 'state-graph', prev.edges).map((edge) => {
+        if (
+          pendingConnection?.sourceNodeId === edge.source &&
+          pendingConnection?.targetNodeId === edge.target &&
+          (pendingConnection.sourceHandle || pendingConnection.targetHandle)
+        ) {
+          return {
+            ...edge,
+            sourceHandle: pendingConnection.sourceHandle ?? edge.sourceHandle,
+            targetHandle: pendingConnection.targetHandle ?? edge.targetHandle,
+            data: {
+              ...edge.data!,
+              sourcePortMode: pendingConnection.sourceHandle
+                ? ('manual' as const)
+                : edge.data?.sourcePortMode,
+              targetPortMode: pendingConnection.targetHandle
+                ? ('manual' as const)
+                : edge.data?.targetPortMode,
+            },
+          };
+        }
+        return edge;
+      });
       return { ...prev, rules5, edges };
     });
   },
@@ -469,9 +492,32 @@ export const createRulesSlice: SliceCreator<RulesSlice> = (set, get) => ({
       ...rule,
       id: `r4_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     };
+    const pendingConnection = get().ruleModalData;
     get().updateActiveProject((prev) => {
       const rules4 = [...prev.rules4, newRule];
-      const edges = buildEdgesFromRules(rules4, '4-tuple', prev.subMode, prev.edges);
+      const edges = buildEdgesFromRules(rules4, '4-tuple', prev.subMode, prev.edges).map((edge) => {
+        if (
+          pendingConnection?.sourceNodeId === edge.source &&
+          pendingConnection?.targetNodeId === edge.target &&
+          (pendingConnection.sourceHandle || pendingConnection.targetHandle)
+        ) {
+          return {
+            ...edge,
+            sourceHandle: pendingConnection.sourceHandle ?? edge.sourceHandle,
+            targetHandle: pendingConnection.targetHandle ?? edge.targetHandle,
+            data: {
+              ...edge.data!,
+              sourcePortMode: pendingConnection.sourceHandle
+                ? ('manual' as const)
+                : edge.data?.sourcePortMode,
+              targetPortMode: pendingConnection.targetHandle
+                ? ('manual' as const)
+                : edge.data?.targetPortMode,
+            },
+          };
+        }
+        return edge;
+      });
       return { ...prev, rules4, edges };
     });
   },
@@ -603,8 +649,12 @@ export const createRulesSlice: SliceCreator<RulesSlice> = (set, get) => ({
               : [...rules, newRuleItem];
             return {
               ...e,
+              ...(sourceHandle ? { sourceHandle } : {}),
+              ...(targetHandle ? { targetHandle } : {}),
               data: {
                 ...e.data,
+                ...(sourceHandle ? { sourcePortMode: 'manual' as const } : {}),
+                ...(targetHandle ? { targetPortMode: 'manual' as const } : {}),
                 mode: e.data?.mode || prev.mode,
                 subMode: e.data?.subMode || prev.subMode,
                 rules: updatedRules,
@@ -622,6 +672,8 @@ export const createRulesSlice: SliceCreator<RulesSlice> = (set, get) => ({
           ...(targetHandle ? { targetHandle } : {}),
           type: 'customTransition',
           data: {
+            ...(sourceHandle ? { sourcePortMode: 'manual' as const } : {}),
+            ...(targetHandle ? { targetPortMode: 'manual' as const } : {}),
             mode: prev.mode,
             subMode: prev.subMode,
             isBiDirectional: hasReverse,

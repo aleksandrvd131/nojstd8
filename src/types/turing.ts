@@ -24,6 +24,17 @@ export type OperationalNodeType =
   | 'WRITE_SYM'  // [a]
   | 'COMPLEX_MACHINE'; // Nested sub-machine call
 
+export type CodeOperation = 'SHIFT_L' | 'SHIFT_R' | 'SEARCH_L' | 'SEARCH_R';
+
+export interface ParsedCodeOp {
+  opType: OperationalNodeType;
+  symbolToWrite?: string;
+  subMachineId?: string;
+  subMachineName?: string;
+  functionCode?: string;
+  repeatCount?: number;
+}
+
 export interface FiveTupleRule {
   id: string;
   fromState: string;
@@ -74,6 +85,8 @@ export interface EdgeRuleItem {
 }
 
 export interface CustomEdgeData extends Record<string, unknown> {
+  sourcePortMode?: 'auto' | 'manual';
+  targetPortMode?: 'auto' | 'manual';
   rules: EdgeRuleItem[];
   mode: TuringMode;
   subMode?: FourTupleSubMode;
@@ -88,6 +101,7 @@ export type TuringEdge = Edge<CustomEdgeData>;
 export interface SubMachine {
   id: string;
   name: string;
+  code?: string;
   description?: string;
   nodes: TuringNode[];
   edges: TuringEdge[];

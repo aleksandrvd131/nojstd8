@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import {
-  Cpu,
   FolderOpen,
   BookOpen,
   Share2,
@@ -46,19 +45,9 @@ export const HeaderNavbar: React.FC = () => {
     <header className="h-12 px-3 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 select-none z-20 text-xs">
       {/* Left: Brand & Project Name */}
       <div className="flex items-center gap-2.5 min-w-0">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900">
-            <Cpu className="w-4 h-4" />
-          </div>
-          <div className="flex items-center gap-1.5 hidden sm:flex">
-            <span className="font-bold tracking-tight text-zinc-900 dark:text-zinc-100 text-xs font-mono uppercase">
-              Turing<span className="text-sky-500">IDE</span>
-            </span>
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
-              v1.0
-            </span>
-          </div>
-        </div>
+        <span className="hidden font-mono text-xs font-semibold tracking-tight lowercase text-zinc-900 dark:text-zinc-100 sm:inline">
+          nojstd
+        </span>
 
         <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block" />
 

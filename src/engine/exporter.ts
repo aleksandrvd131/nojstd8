@@ -97,7 +97,7 @@ export function exportToLaTeX(project: ProjectSession): string {
   const states = nodes.map((n) => escapeLatex(n.data.label || n.id)).join(', ');
 
   let latex = `% Отчет по Машине Тьюринга: ${project.name}\n`;
-  latex += `% Сгенерировано в Next-Gen Turing Machine IDE\n\n`;
+  latex += `% Сгенерировано в nojstd\n\n`;
   latex += `\\subsection*{Формальное определение машины Тьюринга}\n`;
   latex += `Формально машина Тьюринга задается кортежем:\n`;
   latex += `\\[ M = \\langle Q, \\Sigma, \\Gamma, \\delta, q_0, B, F \\rangle \\]\n`;

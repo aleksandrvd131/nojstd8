@@ -1,13 +1,21 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ProjectSession } from '../types/turing';
+import { ProjectSession, TuringNode, TuringEdge } from '../types/turing';
 import { DEMO_PROJECT_1, DEMO_PROJECT_2, DEMO_PROJECT_3, INITIAL_PROJECTS } from '../store/demoProjects';
-import { useTuringStore } from '../store/useTuringStore';
+import {
+  useTuringStore,
+  autoLayoutGraph,
+  handleDebuggerKeyboardShortcut,
+} from '../store/useTuringStore';
 import { runTestCase, initRuntimeState, stepMachine, stepBackMachine } from './simulator';
 import {
   convert5TupleTo4Tuple,
   convert4TupleTo5Tuple,
   compileOperationalDiagramTo4Tuples,
   buildEdgesFromRules,
+  compileVTMCode,
+  parseVTMCodeDetailed,
+  assignNearestEdgeHandles,
+  findFeedbackEdgeIds,
 } from './transpiler';
 import { validateMachine } from './validator';
 import {
@@ -30,6 +38,9 @@ function resetStore() {
     selectedEdgeId: null,
     isRuleModalOpen: false,
     ruleModalData: null,
+    portError: null,
+    editorUndoStack: [],
+    editorRedoStack: [],
     keyboardShortcutsEnabled: true,
   });
 }
@@ -754,5 +765,306 @@ describe('Zustand Store Reactivity & Mutations', () => {
     expect(typeof stats.maxTapeIndex).toBe('number');
     expect(stats.status).toBe('idle');
     expect(store.keyboardShortcutsEnabled).toBe(true);
+  });
+
+  it('prevents node card overlaps during auto-layout', () => {
+    const store = useTuringStore.getState();
+    store.applyAutoLayout();
+    const projectAfterAutoLayout = useTuringStore.getState().getActiveProject();
+    const wideCards = projectAfterAutoLayout.nodes.map((n) => ({
+      ...n,
+      measured: { width: 250, height: 116 },
+    }));
+    const noOverlaps = autoLayoutGraph(wideCards, projectAfterAutoLayout.edges).every(
+      (node, index, all) => {
+        const size = node.measured!;
+        return all.slice(index + 1).every((other) => {
+          const otherSize = other.measured!;
+          return (
+            node.position.x + size.width! <= other.position.x ||
+            other.position.x + otherSize.width! <= node.position.x ||
+            node.position.y + size.height! <= other.position.y ||
+            other.position.y + otherSize.height! <= node.position.y
+          );
+        });
+      }
+    );
+    expect(noOverlaps).toBe(true);
+  });
+
+  it('parses, compiles, creates, inserts VTM code fragments and handles Delete/Backspace', () => {
+    const store = useTuringStore.getState();
+    const parsedVtm = parseVTMCodeDetailed('r^3 R 0', DEMO_PROJECT_1.alphabet);
+    expect(parsedVtm.errors).toHaveLength(0);
+    expect(parsedVtm.ops).toHaveLength(5);
+    expect(parsedVtm.ops.map((o) => o.opType).join(',')).toBe(
+      'SHIFT_R,SHIFT_R,SHIFT_R,SEARCH_R,WRITE_SYM'
+    );
+    expect(parsedVtm.ops[4].symbolToWrite).toBe('0');
+
+    const invalidVtm = parseVTMCodeDetailed('r^0 X', DEMO_PROJECT_1.alphabet);
+    expect(invalidVtm.errors).toHaveLength(2);
+
+    const compiledVtm = compileVTMCode('r^3 R 0', DEMO_PROJECT_1.alphabet);
+    expect(compiledVtm.nodes).toHaveLength(5);
+    expect(compiledVtm.edges).toHaveLength(4);
+    expect(
+      compiledVtm.edges.every((edge) => edge.sourceHandle === 'right' && edge.targetHandle === 'left')
+    ).toBe(true);
+    expect(
+      compiledVtm.nodes.every((n) => {
+        const opType = (n.data as any).opType;
+        return opType !== 'START' && opType !== 'FINISH';
+      })
+    ).toBe(true);
+    expect(compiledVtm.rules4.length).toBeGreaterThan(0);
+
+    const vtmStartNode: TuringNode = {
+      id: 'test_vtm_start',
+      type: 'operationNode',
+      position: { x: 0, y: 0 },
+      data: { label: 'START', opType: 'START' },
+    };
+    const vtmFinishNode: TuringNode = {
+      id: 'test_vtm_finish',
+      type: 'operationNode',
+      position: { x: 1200, y: 0 },
+      data: { label: 'FINISH', opType: 'FINISH' },
+    };
+    const vtmFirstNode = compiledVtm.nodes[0];
+    const vtmLastNode = compiledVtm.nodes[compiledVtm.nodes.length - 1];
+    const vtmStartEdge: TuringEdge = {
+      id: 'e_test_vtm_start',
+      source: vtmStartNode.id,
+      target: vtmFirstNode.id,
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [{ id: 'r_test_vtm_start', readSymbol: '*', isWildcard: true }],
+      },
+    };
+    const vtmFinishEdge: TuringEdge = {
+      id: 'e_test_vtm_finish',
+      source: vtmLastNode.id,
+      target: vtmFinishNode.id,
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [{ id: 'r_test_vtm_finish', readSymbol: '*', isWildcard: true }],
+      },
+    };
+    const vtmFullNodes = [vtmStartNode, ...compiledVtm.nodes, vtmFinishNode];
+    const vtmFullEdges = [vtmStartEdge, ...compiledVtm.edges, vtmFinishEdge];
+    const vtmCodeProject: ProjectSession = {
+      ...DEMO_PROJECT_1,
+      id: 'test-vtm-code-project',
+      mode: '4-tuple',
+      subMode: 'operational',
+      nodes: vtmFullNodes,
+      edges: vtmFullEdges,
+      rules4: compileOperationalDiagramTo4Tuples(vtmFullNodes, vtmFullEdges, DEMO_PROJECT_1.alphabet),
+      rules5: [],
+      subMachines: [],
+      initialTape: { 0: '1', 1: '1', 2: '1', 3: '1' },
+      initialHeadPosition: 0,
+    };
+    let vtmCodeState = initRuntimeState(vtmCodeProject);
+    let vtmCodeSteps = 0;
+    while (vtmCodeState.status !== 'halted' && vtmCodeState.status !== 'error' && vtmCodeSteps < 50) {
+      vtmCodeState = stepMachine(vtmCodeProject, vtmCodeState);
+      vtmCodeSteps++;
+    }
+    expect(vtmCodeState.status).toBe('halted');
+    expect(vtmCodeState.headPosition).toBe(4);
+    expect(vtmCodeState.tape[4]).toBe('0');
+    expect(vtmCodeState.tape[0]).toBe('1');
+    expect(vtmCodeState.tape[3]).toBe('1');
+
+    const projectsBeforeVtm = useTuringStore.getState().projects.length;
+    expect(store.addVTMCode('r^3 R 0', 'VTM Code Test')).toBe(true);
+    expect(useTuringStore.getState().projects).toHaveLength(projectsBeforeVtm + 1);
+    const createdVtmProject = useTuringStore.getState().getActiveProject();
+    expect(createdVtmProject.name).toBe('VTM Code Test');
+    expect(createdVtmProject.subMode).toBe('operational');
+    expect(createdVtmProject.nodes).toHaveLength(5);
+    expect(Object.keys(createdVtmProject.initialTape)).toHaveLength(0);
+    expect(useTuringStore.getState().runtime.currentNodeId).toBe(createdVtmProject.nodes[0].id);
+
+    expect(store.addVTMCode('r^3 X')).toBe(false);
+    expect(useTuringStore.getState().projects).toHaveLength(projectsBeforeVtm + 1);
+
+    store.switchProject(DEMO_PROJECT_3.id);
+    const insertProjectBefore = useTuringStore.getState().getActiveProject();
+    const nodesBeforeInsert = insertProjectBefore.nodes.length;
+    const edgesBeforeInsert = insertProjectBefore.edges.length;
+    expect(store.insertVTMCode('r R 1')).toBe(true);
+    const insertProjectAfter = useTuringStore.getState().getActiveProject();
+    expect(insertProjectAfter.nodes).toHaveLength(nodesBeforeInsert + 3);
+    expect(insertProjectAfter.edges).toHaveLength(edgesBeforeInsert + 2);
+    expect(new Set(insertProjectAfter.nodes.map((n) => n.id)).size).toBe(
+      insertProjectAfter.nodes.length
+    );
+    const firstInsertedVtmNode = insertProjectAfter.nodes.find(
+      (n) => n.id === useTuringStore.getState().selectedNodeId
+    );
+    expect((firstInsertedVtmNode?.data as any)?.opType).toBe('SHIFT_R');
+
+    expect(store.insertVTMCode('r ?')).toBe(false);
+    expect(useTuringStore.getState().getActiveProject().nodes).toHaveLength(nodesBeforeInsert + 3);
+
+    store.setSelectedNodeId(firstInsertedVtmNode!.id);
+    const nodesBeforeDeleteKey = useTuringStore.getState().getActiveProject().nodes.length;
+    expect(
+      handleDebuggerKeyboardShortcut({
+        key: 'Delete',
+        target: { tagName: 'BODY' },
+        preventDefault() {},
+      } as any)
+    ).toBe(true);
+    expect(useTuringStore.getState().getActiveProject().nodes).toHaveLength(
+      nodesBeforeDeleteKey - 1
+    );
+
+    store.setSelectedNodeId(null);
+    const edgeForBackspace = useTuringStore.getState().getActiveProject().edges[0];
+    store.setSelectedEdgeId(edgeForBackspace.id);
+    const edgesBeforeBackspace = useTuringStore.getState().getActiveProject().edges.length;
+    expect(
+      handleDebuggerKeyboardShortcut({
+        key: 'Backspace',
+        target: { tagName: 'BODY' },
+        preventDefault() {},
+      } as any)
+    ).toBe(true);
+    expect(useTuringStore.getState().getActiveProject().edges).toHaveLength(
+      edgesBeforeBackspace - 1
+    );
+  });
+
+  it('supports positioned node creation, edge reconnection, project functions, and nearest edge ports', () => {
+    const store = useTuringStore.getState();
+
+    store.switchProject(DEMO_PROJECT_3.id);
+    store.addOperationNode('SHIFT_R', 'r', undefined, { x: 777, y: 333 });
+    const positionedOperation = useTuringStore.getState().getActiveProject().nodes.slice(-1)[0];
+    expect(positionedOperation.position).toEqual({ x: 777, y: 333 });
+
+    store.addStateNode('normal', 'q_ctx', { x: 888, y: 444 });
+    const positionedState = useTuringStore.getState().getActiveProject().nodes.slice(-1)[0];
+    expect(positionedState.position).toEqual({ x: 888, y: 444 });
+
+    store.switchProject(DEMO_PROJECT_1.id);
+    store.reconnectEdge('edge_q0_q0', {
+      source: 'q0',
+      target: 'q_halt',
+      sourceHandle: null,
+      targetHandle: null,
+    });
+    const reconnectedProject = useTuringStore.getState().getActiveProject();
+    const reconnectedEdge = reconnectedProject.edges.find((edge) => edge.id === 'edge_q0_q0');
+    expect(reconnectedEdge?.source).toBe('q0');
+    expect(reconnectedEdge?.target).toBe('q_halt');
+    expect(
+      reconnectedProject.rules5
+        .filter((rule) => rule.id.startsWith('r'))
+        .every((rule) => rule.toState === 'q_halt')
+    ).toBe(true);
+
+    store.onConnect({
+      source: 'q0',
+      target: 'q_halt',
+      sourceHandle: 'bottom',
+      targetHandle: 'left',
+    });
+    store.addFiveTupleRule({
+      fromState: 'q0',
+      readSymbol: '0',
+      writeSymbol: '0',
+      move: 'R',
+      toState: 'q_halt',
+    });
+    const positionedWire = useTuringStore
+      .getState()
+      .getActiveProject()
+      .edges.find((edge) => edge.source === 'q0' && edge.target === 'q_halt');
+    expect(positionedWire?.sourceHandle).toBe('bottom');
+    expect(positionedWire?.targetHandle).toBe('left');
+    store.closeRuleModal();
+
+    store.createProject('4-tuple', 'operational', 'Function host');
+    const functionHostId = useTuringStore.getState().activeProjectId;
+    expect(Object.keys(useTuringStore.getState().getActiveProject().initialTape)).toHaveLength(0);
+    expect(store.addProjectFunction(DEMO_PROJECT_3.id, 'K', { x: 420, y: 240 })).toBe(true);
+    const functionHost = useTuringStore.getState().getActiveProject();
+    const importedFunction = functionHost.subMachines.find((fn) => fn.code === 'K');
+    const functionNode = functionHost.nodes.find(
+      (node) => (node.data as any).opType === 'COMPLEX_MACHINE'
+    );
+    expect(Boolean(importedFunction)).toBe(true);
+    expect((functionNode?.data as any)?.subMachineId).toBe(importedFunction?.id);
+
+    const functionCodeResult = compileVTMCode('K r', functionHost.alphabet, {
+      functions: functionHost.subMachines,
+    });
+    expect(functionCodeResult.errors).toHaveLength(0);
+    expect((functionCodeResult.nodes[0]?.data as any)?.opType).toBe('COMPLEX_MACHINE');
+    expect((functionCodeResult.nodes[0]?.data as any)?.subMachineId).toBe(importedFunction?.id);
+    expect(useTuringStore.getState().activeProjectId).toBe(functionHostId);
+
+    const nearestPorts = assignNearestEdgeHandles(
+      [
+        { id: 'left_node', type: 'stateNode', position: { x: 0, y: 0 }, data: { label: 'left', stateType: 'normal' } },
+        { id: 'right_node', type: 'stateNode', position: { x: 300, y: 0 }, data: { label: 'right', stateType: 'normal' } },
+        { id: 'lower_node', type: 'stateNode', position: { x: 0, y: 240 }, data: { label: 'lower', stateType: 'normal' } },
+      ] as TuringNode[],
+      [
+        {
+          id: 'horizontal',
+          source: 'left_node',
+          target: 'right_node',
+          type: 'customTransition',
+          data: { mode: '5-tuple', rules: [] },
+        },
+        {
+          id: 'vertical',
+          source: 'left_node',
+          target: 'lower_node',
+          type: 'customTransition',
+          data: { mode: '5-tuple', rules: [] },
+        },
+      ] as TuringEdge[]
+    );
+    expect(nearestPorts[0].sourceHandle).toBe('right');
+    expect(nearestPorts[0].targetHandle).toBe('left');
+    expect(nearestPorts[1].sourceHandle).toBe('bottom');
+    expect(nearestPorts[1].targetHandle).toBe('top');
+
+    const fanOutPorts = assignNearestEdgeHandles(
+      [
+        { id: 'fan_source', type: 'operationNode', position: { x: 0, y: 0 }, data: {} },
+        { id: 'fan_upper', type: 'operationNode', position: { x: 300, y: -100 }, data: {} },
+        { id: 'fan_lower', type: 'operationNode', position: { x: 300, y: 100 }, data: {} },
+      ] as TuringNode[],
+      [
+        { id: 'fan_upper_edge', source: 'fan_source', target: 'fan_upper', data: {} },
+        { id: 'fan_lower_edge', source: 'fan_source', target: 'fan_lower', data: {} },
+      ] as TuringEdge[]
+    );
+    expect(fanOutPorts[0].sourceHandle).toBe(fanOutPorts[1].sourceHandle);
+
+    const reciprocalNodes = [
+      { id: 'left', type: 'operationNode', position: { x: 0, y: 0 }, data: {} },
+      { id: 'right', type: 'operationNode', position: { x: 420, y: 0 }, data: {} },
+    ] as TuringNode[];
+    const reciprocalEdges = [
+      { id: 'forward', source: 'left', target: 'right', data: {} },
+      { id: 'return', source: 'right', target: 'left', data: {} },
+    ] as TuringEdge[];
+    const reciprocalPorts = assignNearestEdgeHandles(reciprocalNodes, reciprocalEdges);
+    expect(reciprocalPorts[0].sourceHandle).not.toBe(reciprocalPorts[1].targetHandle);
+    expect(reciprocalPorts[0].targetHandle).not.toBe(reciprocalPorts[1].sourceHandle);
+    expect(findFeedbackEdgeIds(reciprocalNodes, reciprocalEdges).has('return')).toBe(true);
   });
 });
