@@ -94,6 +94,7 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <div
+      data-export-current-node={isCurrent ? '' : undefined}
       className={clsx(
         'relative group min-w-[120px] rounded-md px-3 py-2 select-none transition-colors border cursor-grab active:cursor-grabbing',
         isCurrent
@@ -130,7 +131,7 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
 
       {/* Discrete active execution badge */}
       {isCurrent && (
-        <span className="absolute -top-2 right-2 px-1 py-0.5 rounded bg-amber-500 text-white font-mono text-[8px] font-bold tracking-wider shadow-sm">
+        <span data-export-current-badge="" className="absolute -top-2 right-2 px-1 py-0.5 rounded bg-amber-500 text-white font-mono text-[8px] font-bold tracking-wider shadow-sm">
           ACT
         </span>
       )}

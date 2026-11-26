@@ -119,7 +119,8 @@ export interface GraphSlice {
   addProjectFunction: (
     sourceProjectId: string,
     code: string,
-    position?: { x: number; y: number }
+    position?: { x: number; y: number },
+    insertNode?: boolean
   ) => boolean;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   updateEdgeLabelOffset: (edgeId: string, labelOffset: { x: number; y: number }) => void;

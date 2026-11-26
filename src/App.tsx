@@ -74,9 +74,9 @@ export const App: React.FC = () => {
 
         {/* 3. Right Inspector & Diagnostics Panel */}
         {isInspectorOpen && (
-          <aside className="w-96 lg:w-[420px] h-full flex flex-col bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 shadow-sm z-10">
+          <aside className="w-96 lg:w-[420px] h-full flex flex-col bg-white dark:bg-zinc-900 border-l border-zinc-300 dark:border-zinc-600 shadow-sm z-10">
             {/* Inspector Tab Bar */}
-            <div className="flex items-center border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-2 text-xs font-medium overflow-x-auto">
+            <div className="flex items-center border-b border-zinc-300 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-950 px-2 text-xs font-medium overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setActiveTab('tuples')}

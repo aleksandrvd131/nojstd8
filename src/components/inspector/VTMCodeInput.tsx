@@ -16,9 +16,28 @@ export const VTMCodeInput: React.FC = () => {
   const project = useActiveProject();
   const addVTMCode = useTuringStore((s) => s.addVTMCode);
   const insertVTMCode = useTuringStore((s) => s.insertVTMCode);
+  const addProjectFunction = useTuringStore((s) => s.addProjectFunction);
+  const projects = useTuringStore((s) => s.projects);
 
   const [code, setCode] = useState('r^3 R 0');
   const [message, setMessage] = useState<Message>(null);
+  const [sourceId, setSourceId] = useState('');
+  const [functionCode, setFunctionCode] = useState('K');
+  const availableProjects = projects.filter(
+    (candidate) => candidate.id !== project.id && candidate.mode === '4-tuple' &&
+      candidate.subMode === 'operational' && candidate.nodes.length > 0
+  );
+  const selectedSourceId = availableProjects.some((candidate) => candidate.id === sourceId)
+    ? sourceId : availableProjects[0]?.id ?? '';
+  const codeError = !/^[A-Z]$/.test(functionCode)
+    ? 'Введите одну латинскую букву.'
+    : ['L', 'R'].includes(functionCode)
+      ? 'L и R обозначают поиск и недоступны для функции.'
+      : [...project.alphabet.symbols, project.alphabet.blankSymbol].includes(functionCode)
+        ? 'Эта буква уже используется в алфавите.'
+        : project.subMachines.some((machine) => machine.code === functionCode)
+          ? 'Эта буква уже занята другой функцией.'
+          : '';
 
   const { ops, errors } = useMemo(
     () => parseVTMCodeDetailed(code, project.alphabet, project.subMachines),
@@ -31,6 +50,14 @@ export const VTMCodeInput: React.FC = () => {
   const changeCode = (value: string) => {
     setCode(value);
     setMessage(null);
+  };
+
+  const handleImport = () => {
+    if (!selectedSourceId || codeError) return;
+    const ok = addProjectFunction(selectedSourceId, functionCode, undefined, false);
+    setMessage(ok
+      ? { kind: 'ok', text: `Функция ${functionCode} импортирована. Добавьте её букву в код.` }
+      : { kind: 'error', text: 'Не удалось импортировать машину.' });
   };
 
   const handleInsert = () => {
@@ -60,7 +87,7 @@ export const VTMCodeInput: React.FC = () => {
     .join(' → ');
 
   return (
-    <div className="h-full overflow-y-auto p-4 text-xs">
+    <div className="min-h-0 overflow-y-auto p-4 text-xs">
       <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
         VTM-код
       </h3>
@@ -95,6 +122,56 @@ export const VTMCodeInput: React.FC = () => {
           </div>
         )}
       </div>
+
+      <details className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+        <summary className="cursor-pointer text-[11px] font-medium text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100">
+          Импорт машины в код
+        </summary>
+        <p className="mt-2 text-[11px] leading-4 text-zinc-500 dark:text-zinc-400">
+          Выберите проект и букву для вызова его копии.
+        </p>
+        {availableProjects.length > 0 ? (
+          <>
+            <div className="mt-2 flex items-end gap-2">
+            <label className="min-w-0 flex-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+              Проект
+              <select
+                value={selectedSourceId}
+                onChange={(event) => setSourceId(event.target.value)}
+                className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              >
+                {availableProjects.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="w-16 text-[11px] text-zinc-500 dark:text-zinc-400">
+              Буква
+              <input
+                aria-label="Буква функции"
+                value={functionCode}
+                onChange={(event) => setFunctionCode(event.target.value.toUpperCase().slice(0, 1))}
+                maxLength={1}
+                className="mt-1 block w-full rounded border border-zinc-300 bg-white px-2 py-1.5 font-mono text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+              />
+            </label>
+            </div>
+            {codeError && <p role="alert" className="mt-1 text-[11px] text-red-700 dark:text-red-300">{codeError}</p>}
+            <button type="button" onClick={handleImport} disabled={!!codeError} className={`${secondaryButtonClass} mt-2`}>
+              Импортировать в код
+            </button>
+          </>
+        ) : (
+          <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+            Нет других непустых операционных проектов.
+          </p>
+        )}
+        {project.subMachines.some((machine) => machine.code) && (
+          <div className="mt-2 text-[11px] text-zinc-600 dark:text-zinc-300">
+            Доступны: {project.subMachines.filter((machine) => machine.code).map((machine) => `${machine.code} — ${machine.name}`).join(', ')}
+          </div>
+        )}
+      </details>
 
       <div className="mt-4">
         <label

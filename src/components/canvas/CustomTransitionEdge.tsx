@@ -196,6 +196,7 @@ export const CustomTransitionEdge = memo(
       <>
         <BaseEdge
           id={id}
+          className={isActive ? 'export-active-edge' : undefined}
           path={edgePath}
           markerEnd={markerEnd}
           interactionWidth={24}
@@ -223,6 +224,7 @@ export const CustomTransitionEdge = memo(
           >
             <div
               onMouseDown={handleDragStart}
+              data-export-active-label={isActive ? '' : undefined}
               className={clsx(
                 'flex max-w-[240px] flex-wrap items-center justify-center gap-1 rounded-full border bg-white/95 px-1.5 py-1 shadow-md backdrop-blur-sm dark:bg-zinc-900/95 cursor-move select-none',
                 showActionWindow
@@ -233,6 +235,7 @@ export const CustomTransitionEdge = memo(
             >
               {showActionWindow && (
                 <div
+                  data-export-control=""
                   className="flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-grab active:cursor-grabbing px-0.5"
                   title="Перетащите окно действий"
                 >
@@ -261,6 +264,7 @@ export const CustomTransitionEdge = memo(
                 return (
                   <div
                     key={rule.id}
+                    data-export-active-rule={isActive ? '' : undefined}
                     onClick={(e) => handleRuleClick(e, rule)}
                     className={clsx(
                       'group/pill flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono font-medium cursor-pointer transition-colors',
@@ -272,6 +276,7 @@ export const CustomTransitionEdge = memo(
                   >
                     <span>{text}</span>
                     <button
+                      data-export-control=""
                       type="button"
                       onClick={(e) => handleDeleteRule(e, rule.id)}
                       className="opacity-0 group-hover/pill:opacity-100 text-zinc-400 hover:text-rose-500 transition-opacity ml-0.5"
@@ -284,6 +289,7 @@ export const CustomTransitionEdge = memo(
               })}
 
               <button
+                data-export-control=""
                 type="button"
                 onClick={handleAddRuleClick}
                 className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"

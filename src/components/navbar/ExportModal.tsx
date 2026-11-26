@@ -32,6 +32,9 @@ export const ExportModal: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const theme = useTuringStore((s) => s.theme);
+  const [imageTheme, setImageTheme] = useState<'light' | 'dark'>(theme);
+  const [highlightCurrentStep, setHighlightCurrentStep] = useState(false);
 
   if (!isExportModalOpen) return null;
 
@@ -85,6 +88,8 @@ export const ExportModal: React.FC = () => {
       const dataUrl = await exportDiagramImage({
         format,
         filename: `${project.name.replace(/\s+/g, '_')}_diagram`,
+        theme: imageTheme,
+        highlightCurrentStep,
       });
       if (!dataUrl) {
         setExportError(`Не удалось сформировать ${format.toUpperCase()} снимок холста.`);
@@ -214,6 +219,23 @@ export const ExportModal: React.FC = () => {
                 </p>
               </div>
 
+              <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-zinc-700 dark:text-zinc-300">
+                <label className="flex items-center gap-2">
+                  Тема диаграммы
+                  <select
+                    value={imageTheme}
+                    onChange={(event) => setImageTheme(event.target.value as 'light' | 'dark')}
+                    className="rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-700 dark:bg-zinc-900"
+                  >
+                    <option value="light">Светлая</option>
+                    <option value="dark">Тёмная</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={highlightCurrentStep} onChange={(event) => setHighlightCurrentStep(event.target.checked)} />
+                  Подсвечивать текущий шаг
+                </label>
+              </div>
               <div className="flex items-center gap-2 pt-2">
                 <button
                   type="button"

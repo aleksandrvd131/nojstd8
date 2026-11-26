@@ -450,7 +450,8 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
     addProjectFunction: (
       sourceProjectId: string,
       code: string,
-      position?: { x: number; y: number }
+      position?: { x: number; y: number },
+      insertNode = true
     ) => {
       const { projects, activeProjectId } = get();
       const parent = get().getActiveProject();
@@ -464,6 +465,7 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
         !/^[A-Z]$/.test(functionCode) ||
         ['R', 'L'].includes(functionCode) ||
         parent.alphabet.symbols.includes(functionCode) ||
+        parent.alphabet.blankSymbol === functionCode ||
         parent.subMachines.some((machine) => machine.code === functionCode) ||
         source.nodes.length === 0
       ) {
@@ -473,10 +475,28 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
       get().pushEditorSnapshot();
 
       const functionId = `function_${source.id}_${Date.now().toString(36)}`;
+      const dependencyIds = new Map(source.subMachines.map((machine, index) => [
+        machine.id, `${functionId}_dependency_${index}`,
+      ]));
+      const copyNode = (node: TuringNode): TuringNode => {
+        const data = { ...node.data };
+        if (typeof data.subMachineId === 'string' && dependencyIds.has(data.subMachineId)) {
+          data.subMachineId = dependencyIds.get(data.subMachineId);
+        }
+        return { ...node, position: { ...node.position }, data };
+      };
+      const dependencies = source.subMachines.map((machine) => ({
+        ...machine,
+        id: dependencyIds.get(machine.id)!,
+        code: undefined,
+        nodes: machine.nodes.map(copyNode),
+        edges: machine.edges.map((edge) => ({
+          ...edge,
+          data: edge.data ? { ...edge.data, rules: edge.data.rules.map((rule) => ({ ...rule })) } : edge.data,
+        })),
+      }));
       const sourceNodes = source.nodes.map((node) => ({
-        ...node,
-        position: { ...node.position },
-        data: { ...node.data },
+        ...copyNode(node),
       }));
       const sourceEdges: TuringEdge[] = source.edges.map((edge) => ({
         ...edge,
@@ -560,7 +580,7 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
           sourceNodes,
           sourceEdges,
           source.alphabet,
-          source.subMachines
+          dependencies
         ),
       };
 
@@ -584,10 +604,10 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
 
       get().updateActiveProject((prev) => ({
         ...prev,
-        subMachines: [...prev.subMachines, sourceMachine],
-        nodes: [...prev.nodes, functionNode],
+        subMachines: [...prev.subMachines, sourceMachine, ...dependencies],
+        nodes: insertNode ? [...prev.nodes, functionNode] : prev.nodes,
       }));
-      set({ selectedNodeId: nodeId, selectedEdgeId: null });
+      if (insertNode) set({ selectedNodeId: nodeId, selectedEdgeId: null });
       return true;
     },
 

@@ -13,6 +13,7 @@ import { InfiniteTapeDock } from './tape/InfiniteTapeDock';
 import { ExportModal } from './navbar/ExportModal';
 import { ConfirmModal } from './navbar/ConfirmModal';
 import { SessionManagerDrawer } from './sidebar/SessionManagerDrawer';
+import { VTMCodeInput } from './inspector/VTMCodeInput';
 
 function resetStore(projectId = INITIAL_PROJECTS[0].id) {
   const freshProjects: ProjectSession[] = JSON.parse(JSON.stringify(INITIAL_PROJECTS));
@@ -36,6 +37,27 @@ function resetStore(projectId = INITIAL_PROJECTS[0].id) {
 describe('React UI Components', () => {
   beforeEach(() => {
     resetStore();
+  });
+
+  it('imports an operational project as a VTM code function without adding a canvas node', () => {
+    resetStore('demo-project-vtm-copy');
+    const source = { ...INITIAL_PROJECTS[2], id: 'vtm-source', name: 'Моя машина' };
+    useTuringStore.setState((state) => ({ projects: [...state.projects, source] }));
+    const before = useTuringStore.getState().getActiveProject().nodes.length;
+    render(<VTMCodeInput />);
+
+    fireEvent.click(screen.getByText('Импорт машины в код'));
+    fireEvent.change(screen.getByLabelText('Проект'), { target: { value: source.id } });
+    fireEvent.change(screen.getByLabelText('Буква функции'), { target: { value: 'K' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Импортировать в код' }));
+
+    expect(useTuringStore.getState().getActiveProject().nodes).toHaveLength(before);
+    expect(screen.getByText(/K — Моя машина/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Код'), { target: { value: 'K r' } });
+    expect(screen.getByRole('button', { name: 'Вставить в текущую схему' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить в текущую схему' }));
+    const project = useTuringStore.getState().getActiveProject();
+    expect(project.nodes.some((node) => node.data.subMachineId === project.subMachines.find((sm) => sm.code === 'K')?.id)).toBe(true);
   });
 
   it('DiagnosticsPanel reacts to store mutations via useActiveProject', () => {

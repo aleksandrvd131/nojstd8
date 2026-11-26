@@ -239,9 +239,9 @@ const TuringCanvasInner: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-full bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
+    <div className="relative w-full h-full bg-zinc-100 dark:bg-black overflow-hidden">
       {/* Precision Floating Action Bar */}
-      <div className="absolute top-2.5 left-2.5 z-10 flex flex-wrap items-center gap-1 p-1 rounded-md bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 shadow-sm text-xs">
+      <div className="absolute top-2.5 left-2.5 z-10 flex flex-wrap items-center gap-1 p-1 rounded-md bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 shadow-md text-xs">
         {mode === '5-tuple' || subMode === 'state-graph' ? (
           <>
             <button
@@ -417,7 +417,7 @@ const TuringCanvasInner: React.FC = () => {
         {portError ?? `Конфликт направлений (${[...view.conflicts].join(', ')}). Выберите переход и измените точку.`}
       </div>}
       {isVTMCodeOpen && (
-        <div className="absolute left-3 top-14 z-20 w-80 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-md dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="absolute left-3 top-14 z-20 flex max-h-[calc(100%-4rem)] w-80 flex-col overflow-hidden rounded-md border border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-900">
           <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 text-xs font-medium dark:border-zinc-800">
             <span>VTM-код</span>
             <button
