@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run typecheck && npm test && npm run build",
+    "check:graph": "node scripts/check-graph-freshness.mjs",
     "prepare": "[ -d .git ] && git config core.hooksPath .githooks || true"
   },
   "dependencies": {
