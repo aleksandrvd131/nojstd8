@@ -10,6 +10,7 @@ export function handleDebuggerKeyboardShortcut(
     store.isRuleModalOpen ||
     store.isAlphabetModalOpen ||
     store.isExportModalOpen ||
+    store.isSettingsModalOpen ||
     store.isSessionDrawerOpen ||
     store.confirmModal !== null;
 

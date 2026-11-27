@@ -12,6 +12,7 @@ import { InfiniteTapeDock } from './tape/InfiniteTapeDock';
 import { DebuggerControls } from './tape/DebuggerControls';
 import { ExportModal } from './navbar/ExportModal';
 import { ConfirmModal } from './navbar/ConfirmModal';
+import { DiagramSettingsModal } from './navbar/DiagramSettingsModal';
 import { SessionManagerDrawer } from './sidebar/SessionManagerDrawer';
 import { VTMCodeInput } from './inspector/VTMCodeInput';
 import { HeaderNavbar } from './navbar/HeaderNavbar';
@@ -36,9 +37,14 @@ function resetStore(projectId = INITIAL_PROJECTS[0].id) {
     ruleModalData: null,
     confirmModal: null,
     isExportModalOpen: false,
+    isSettingsModalOpen: false,
     isSessionDrawerOpen: false,
     keyboardShortcutsEnabled: true,
+    theme: 'dark',
     hideEdgeRules: false,
+    showMiniMap: true,
+    showCanvasControls: true,
+    canvasBackground: 'dots',
   });
 }
 
@@ -389,10 +395,11 @@ describe('React UI Components', () => {
     expect(useTuringStore.getState().projects.length).toBe(initialCount - 1);
   });
 
-  it('toggles edge rule visibility in HeaderNavbar and shows rules only when edge is selected', () => {
+  it('opens cosmetic settings popup from HeaderNavbar and updates theme, canvas, and edge rule visibility', () => {
     render(
       <>
         <HeaderNavbar />
+        <DiagramSettingsModal />
         <ReactFlowProvider>
           <ReactFlow nodes={[]} edges={[]} />
           <svg>
@@ -420,12 +427,34 @@ describe('React UI Components', () => {
       </>
     );
 
-    const toggle = screen.getByRole('switch', { name: 'Скрывать правила переходов' });
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(screen.queryByRole('dialog', { name: 'Настройки оформления диаграммера' })).not.toBeInTheDocument();
     expect(screen.getByTitle('Нажмите для редактирования правила')).toBeInTheDocument();
 
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Настройки оформления диаграммера' }));
+    expect(screen.getByRole('dialog', { name: 'Настройки оформления диаграммера' })).toBeInTheDocument();
+
+    // Theme switching
+    fireEvent.click(screen.getByRole('button', { name: 'Светлая' }));
+    expect(useTuringStore.getState().theme).toBe('light');
+
+    // Canvas background switching
+    fireEvent.click(screen.getByRole('button', { name: 'Сетка' }));
+    expect(useTuringStore.getState().canvasBackground).toBe('lines');
+
+    // MiniMap and Canvas Controls toggles
+    const miniMapToggle = screen.getByRole('switch', { name: 'Показывать миникарту' });
+    fireEvent.click(miniMapToggle);
+    expect(useTuringStore.getState().showMiniMap).toBe(false);
+
+    const controlsToggle = screen.getByRole('switch', { name: 'Показывать панель масштаба' });
+    fireEvent.click(controlsToggle);
+    expect(useTuringStore.getState().showCanvasControls).toBe(false);
+
+    // Hide edge rules toggle
+    const rulesToggle = screen.getByRole('switch', { name: 'Скрывать правила переходов' });
+    expect(rulesToggle).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(rulesToggle);
+    expect(rulesToggle).toHaveAttribute('aria-checked', 'true');
     expect(useTuringStore.getState().hideEdgeRules).toBe(true);
     expect(screen.queryByTitle('Нажмите для редактирования правила')).not.toBeInTheDocument();
 
@@ -438,5 +467,17 @@ describe('React UI Components', () => {
       useTuringStore.getState().setSelectedEdgeId(null);
     });
     expect(screen.queryByTitle('Нажмите для редактирования правила')).not.toBeInTheDocument();
+
+    // Reset restores defaults
+    fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }));
+    expect(useTuringStore.getState().theme).toBe('dark');
+    expect(useTuringStore.getState().canvasBackground).toBe('dots');
+    expect(useTuringStore.getState().showMiniMap).toBe(true);
+    expect(useTuringStore.getState().showCanvasControls).toBe(true);
+    expect(useTuringStore.getState().hideEdgeRules).toBe(false);
+
+    // Escape closes the settings popup
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Настройки оформления диаграммера' })).not.toBeInTheDocument();
   });
 });

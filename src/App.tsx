@@ -10,6 +10,7 @@ import { SessionManagerDrawer } from './components/sidebar/SessionManagerDrawer'
 import { AlphabetBuilder } from './components/sidebar/AlphabetBuilder';
 import { ExportModal } from './components/navbar/ExportModal';
 import { ConfirmModal } from './components/navbar/ConfirmModal';
+import { DiagramSettingsModal } from './components/navbar/DiagramSettingsModal';
 
 import {
   ShieldCheck,
@@ -121,6 +122,7 @@ export const App: React.FC = () => {
       <SessionManagerDrawer />
       <AlphabetBuilder />
       <ExportModal />
+      <DiagramSettingsModal />
       <ConfirmModal />
     </div>
   );

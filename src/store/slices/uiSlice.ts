@@ -1,7 +1,21 @@
-import { SliceCreator, UiSlice } from '../types';
+import { CanvasBackgroundVariant, SliceCreator, UiSlice } from '../types';
+
+export const DEFAULT_COSMETIC_SETTINGS: {
+  theme: 'light' | 'dark';
+  hideEdgeRules: boolean;
+  showMiniMap: boolean;
+  showCanvasControls: boolean;
+  canvasBackground: CanvasBackgroundVariant;
+} = {
+  theme: 'dark',
+  hideEdgeRules: false,
+  showMiniMap: true,
+  showCanvasControls: true,
+  canvasBackground: 'dots',
+};
 
 export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
-  theme: 'dark',
+  ...DEFAULT_COSMETIC_SETTINGS,
   activeTab: 'check',
   isInspectorOpen: false,
   tapeError: null,
@@ -10,14 +24,15 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   isSessionDrawerOpen: false,
   isAlphabetModalOpen: false,
   isExportModalOpen: false,
+  isSettingsModalOpen: false,
   isRuleModalOpen: false,
   ruleModalData: null,
   confirmModal: null,
   executionSpeedMs: 250,
   isRunning: false,
   keyboardShortcutsEnabled: true,
-  hideEdgeRules: false,
 
+  setTheme: (theme) => set({ theme }),
   toggleTheme: () =>
     set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -28,6 +43,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   setSessionDrawerOpen: (open) => set({ isSessionDrawerOpen: open }),
   setAlphabetModalOpen: (open) => set({ isAlphabetModalOpen: open }),
   setExportModalOpen: (open) => set({ isExportModalOpen: open }),
+  setSettingsModalOpen: (open) => set({ isSettingsModalOpen: open }),
   openRuleModal: (data) => set({ isRuleModalOpen: true, ruleModalData: data }),
   closeRuleModal: () => set({ isRuleModalOpen: false, ruleModalData: null }),
   openConfirmModal: (data) => set({ confirmModal: data }),
@@ -39,4 +55,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   toggleHideEdgeRules: () =>
     set((state) => ({ hideEdgeRules: !state.hideEdgeRules })),
   setHideEdgeRules: (hide) => set({ hideEdgeRules: hide }),
+  setShowMiniMap: (show) => set({ showMiniMap: show }),
+  setShowCanvasControls: (show) => set({ showCanvasControls: show }),
+  setCanvasBackground: (canvasBackground) => set({ canvasBackground }),
+  resetCosmeticSettings: () => set({ ...DEFAULT_COSMETIC_SETTINGS }),
 });

@@ -92,6 +92,9 @@ const menuSeparator = 'my-1 h-px bg-zinc-200 dark:bg-zinc-800';
 const TuringCanvasInner: React.FC = () => {
   const activeProjectId = useTuringStore((s) => s.activeProjectId);
   const theme = useTuringStore((s) => s.theme);
+  const canvasBackground = useTuringStore((s) => s.canvasBackground);
+  const showMiniMap = useTuringStore((s) => s.showMiniMap);
+  const showCanvasControls = useTuringStore((s) => s.showCanvasControls);
   const onNodesChange = useTuringStore((s) => s.onNodesChange);
   const onEdgesChange = useTuringStore((s) => s.onEdgesChange);
   const onConnect = useTuringStore((s) => s.onConnect);
@@ -604,21 +607,31 @@ const TuringCanvasInner: React.FC = () => {
         maxZoom={2.5}
         colorMode={theme}
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={16}
-          size={1.2}
-          color={theme === 'dark' ? '#27272a' : '#d4d4d8'}
-        />
-        <Controls
-          showInteractive={false}
-          className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-sm !rounded-md overflow-hidden"
-        />
-        <MiniMap
-          nodeColor={miniMapNodeColor}
-          maskColor={theme === 'dark' ? 'rgba(9, 9, 11, 0.75)' : 'rgba(244, 244, 245, 0.75)'}
-          className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-sm !rounded-md overflow-hidden"
-        />
+        {canvasBackground !== 'none' && (
+          <Background
+            variant={
+              canvasBackground === 'lines'
+                ? BackgroundVariant.Lines
+                : BackgroundVariant.Dots
+            }
+            gap={16}
+            size={1.2}
+            color={theme === 'dark' ? '#27272a' : '#d4d4d8'}
+          />
+        )}
+        {showCanvasControls && (
+          <Controls
+            showInteractive={false}
+            className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-sm !rounded-md overflow-hidden"
+          />
+        )}
+        {showMiniMap && (
+          <MiniMap
+            nodeColor={miniMapNodeColor}
+            maskColor={theme === 'dark' ? 'rgba(9, 9, 11, 0.75)' : 'rgba(244, 244, 245, 0.75)'}
+            className="!bg-white/95 dark:!bg-zinc-900/95 !border-zinc-200 dark:!border-zinc-800 !shadow-sm !rounded-md overflow-hidden"
+          />
+        )}
       </ReactFlow></PortRoles.Provider>
 
       {contextMenu && (

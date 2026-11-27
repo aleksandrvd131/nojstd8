@@ -12,10 +12,10 @@
     "semantic_hash": "ef3ba2a81ba19f8ea5ddf625521e96f0"
   },
   "src/App.tsx": {
-    "mtime": 1795782488.0975294,
-    "seen": 1795798022.1441393,
-    "ast_hash": "c4e7053c176d4752319314d75344d6a4",
-    "semantic_hash": "c4e7053c176d4752319314d75344d6a4"
+    "mtime": 1795798925.1599634,
+    "seen": 1795798993.6825025,
+    "ast_hash": "6b8c4031e9293916fc673eff1a12b062",
+    "semantic_hash": ""
   },
   "src/components/canvas/CustomTransitionEdge.tsx": {
     "mtime": 1795797978.0959003,
@@ -48,15 +48,15 @@
     "semantic_hash": "6953456b704beb6923521b5036a6ae1a"
   },
   "src/components/canvas/TuringCanvas.tsx": {
-    "mtime": 1795785359.7806022,
-    "seen": 1795798022.1441665,
-    "ast_hash": "a91bd6601f718b9370389de9eb6aa623",
+    "mtime": 1795798926.4120288,
+    "seen": 1795798993.6825461,
+    "ast_hash": "6fa737fb9efbfc74f36f95f7ac05f6b7",
     "semantic_hash": ""
   },
   "src/components/components.test.tsx": {
-    "mtime": 1795797978.0979002,
-    "seen": 1795798022.14417,
-    "ast_hash": "629fe0443de00e0cc00fc550b35068b7",
+    "mtime": 1795798929.9072118,
+    "seen": 1795798993.6825516,
+    "ast_hash": "84638976f5ec106db06a22524e028f7b",
     "semantic_hash": ""
   },
   "src/components/inspector/DiagnosticsPanel.tsx": {
@@ -78,9 +78,9 @@
     "semantic_hash": ""
   },
   "src/components/navbar/HeaderNavbar.tsx": {
-    "mtime": 1795797978.0979002,
-    "seen": 1795798022.1441886,
-    "ast_hash": "673aca983452d7e42c68493530927113",
+    "mtime": 1795798924.1239095,
+    "seen": 1795798993.6825817,
+    "ast_hash": "f0968b15d8bfa18d9111f01be60a463e",
     "semantic_hash": ""
   },
   "src/components/sidebar/AlphabetBuilder.tsx": {
@@ -144,9 +144,9 @@
     "semantic_hash": ""
   },
   "src/hooks/useKeyboardShortcuts.ts": {
-    "mtime": 1795795955.5013757,
-    "seen": 1795798022.1442466,
-    "ast_hash": "762d8246545bfb20d9d21bd54f4b6e9d",
+    "mtime": 1795798883.1188214,
+    "seen": 1795798993.6826541,
+    "ast_hash": "09beced2b226d172d1b6b824962f69ab",
     "semantic_hash": ""
   },
   "src/main.tsx": {
@@ -186,9 +186,9 @@
     "semantic_hash": ""
   },
   "src/store/slices/uiSlice.ts": {
-    "mtime": 1795797978.0998876,
-    "seen": 1795798022.1442888,
-    "ast_hash": "1e887f28511994589763f9f5047a5234",
+    "mtime": 1795798881.0857208,
+    "seen": 1795798993.68272,
+    "ast_hash": "eb4ad05e65a72fc01dc281b2333d9791",
     "semantic_hash": ""
   },
   "src/store/storage.ts": {
@@ -204,15 +204,15 @@
     "semantic_hash": ""
   },
   "src/store/types.ts": {
-    "mtime": 1795797978.1001122,
-    "seen": 1795798022.1443014,
-    "ast_hash": "c226d28024cfcd00f346e8228c4d1382",
+    "mtime": 1795798880.4436889,
+    "seen": 1795798993.6827364,
+    "ast_hash": "54010ebd54948eb4cc998b3b2bc8ff81",
     "semantic_hash": ""
   },
   "src/store/useTuringStore.ts": {
-    "mtime": 1795797978.1001122,
-    "seen": 1795798022.1443055,
-    "ast_hash": "bffe7bd658fa9b5b5f1d245cc614fc10",
+    "mtime": 1795798882.0507684,
+    "seen": 1795798993.682741,
+    "ast_hash": "a3bc9bdff1b6fe51efed90c27737967e",
     "semantic_hash": ""
   },
   "src/test/setup.ts": {
@@ -359,7 +359,7 @@
     "ast_hash": "795c00fb028893618499619057dea1c1",
     "semantic_hash": "795c00fb028893618499619057dea1c1"
   },
-  "graphify-out/memory/query_20261125_092734_709079ac_\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0438_\u043f\u0440\u043e\u0435\u043a\u0442_\u0438_\u0440\u0430\u0441\u0441\u043a\u0430\u0436\u0438__\u0447\u0442\u043e_\u0432_\u043d\u0435\u043c_\u0445\u043e\u0440\u043e\u0448\u043e__\u0430_\u0447.md": {
+  "graphify-out/memory/query_20261125_092734_709079ac_просмотри_проект_и_расскажи__что_в_нем_хорошо__а_ч.md": {
     "mtime": 1795721651.3554227,
     "seen": 1795798022.144369,
     "ast_hash": "1559535d41eba0aab565fc8bec7d4391",
@@ -375,6 +375,12 @@
     "mtime": 1795795955.498376,
     "seen": 1795798022.1442208,
     "ast_hash": "adfcceaa6f03f04388b60421341fa15a",
+    "semantic_hash": ""
+  },
+  "src/components/navbar/DiagramSettingsModal.tsx": {
+    "mtime": 1795798903.1848304,
+    "seen": 1795798993.682571,
+    "ast_hash": "17a604b6f8d57a7d231469703e854732",
     "semantic_hash": ""
   }
 }

@@ -5,8 +5,7 @@ import {
   FolderOpen,
   BookOpen,
   Share2,
-  Sun,
-  Moon,
+  SlidersHorizontal,
   Info,
   Check,
   Edit2,
@@ -15,8 +14,6 @@ import {
 } from 'lucide-react';
 
 export const HeaderNavbar: React.FC = () => {
-  const theme = useTuringStore((s) => s.theme);
-  const toggleTheme = useTuringStore((s) => s.toggleTheme);
   const activeTab = useTuringStore((s) => s.activeTab);
   const setActiveTab = useTuringStore((s) => s.setActiveTab);
   const isInspectorOpen = useTuringStore((s) => s.isInspectorOpen);
@@ -24,11 +21,11 @@ export const HeaderNavbar: React.FC = () => {
   const setSessionDrawerOpen = useTuringStore((s) => s.setSessionDrawerOpen);
   const setAlphabetModalOpen = useTuringStore((s) => s.setAlphabetModalOpen);
   const setExportModalOpen = useTuringStore((s) => s.setExportModalOpen);
+  const isSettingsModalOpen = useTuringStore((s) => s.isSettingsModalOpen);
+  const setSettingsModalOpen = useTuringStore((s) => s.setSettingsModalOpen);
   const renameProject = useTuringStore((s) => s.renameProject);
   const updateProjectDescription = useTuringStore((s) => s.updateProjectDescription);
   const projects = useTuringStore((s) => s.projects);
-  const hideEdgeRules = useTuringStore((s) => s.hideEdgeRules);
-  const toggleHideEdgeRules = useTuringStore((s) => s.toggleHideEdgeRules);
 
   const project = useActiveProject();
   const errorCount = useMemo(
@@ -183,37 +180,6 @@ export const HeaderNavbar: React.FC = () => {
             )}
           </div>
         </div>
-
-        <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-0.5 hidden sm:block" />
-
-        <button
-          type="button"
-          role="switch"
-          aria-checked={hideEdgeRules}
-          aria-label="Скрывать правила переходов"
-          onClick={toggleHideEdgeRules}
-          title={
-            hideEdgeRules
-              ? 'Правила переходов скрыты (показываются при нажатии на переход)'
-              : 'Скрывать правила переходов (показывать только при нажатии или выделении)'
-          }
-          className="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
-        >
-          <span
-            className={`relative inline-flex h-3.5 w-6 items-center rounded-full transition-colors ${
-              hideEdgeRules
-                ? 'bg-sky-500'
-                : 'bg-zinc-300 dark:bg-zinc-700'
-            }`}
-          >
-            <span
-              className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow-sm transition-transform ${
-                hideEdgeRules ? 'translate-x-3' : 'translate-x-0.5'
-              }`}
-            />
-          </span>
-          <span className="hidden md:inline whitespace-nowrap">Скрывать правила</span>
-        </button>
       </div>
 
       {/* Right Controls */}
@@ -304,14 +270,17 @@ export const HeaderNavbar: React.FC = () => {
           <span className="hidden sm:inline">Экспорт</span>
         </button>
 
-        {/* Theme Toggle */}
+        {/* Diagram Cosmetic Settings Trigger */}
         <button
           type="button"
-          onClick={toggleTheme}
-          className="p-1.5 rounded text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          title={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
+          onClick={() => setSettingsModalOpen(true)}
+          aria-expanded={isSettingsModalOpen}
+          aria-label="Настройки оформления диаграммера"
+          title="Косметические настройки диаграммера"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs transition-colors"
         >
-          {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-zinc-600" />}
+          <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-500" />
+          <span className="hidden sm:inline">Оформление</span>
         </button>
       </div>
     </header>

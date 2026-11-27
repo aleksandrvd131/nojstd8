@@ -46,6 +46,8 @@ export interface ConfirmModalData {
   onConfirm: () => void;
 }
 
+export type CanvasBackgroundVariant = 'dots' | 'lines' | 'none';
+
 export interface UiSlice {
   theme: 'light' | 'dark';
   activeTab: 'check' | 'tests';
@@ -56,6 +58,7 @@ export interface UiSlice {
   isSessionDrawerOpen: boolean;
   isAlphabetModalOpen: boolean;
   isExportModalOpen: boolean;
+  isSettingsModalOpen: boolean;
   isRuleModalOpen: boolean;
   ruleModalData: RuleModalData | null;
   confirmModal: ConfirmModalData | null;
@@ -63,7 +66,11 @@ export interface UiSlice {
   isRunning: boolean;
   keyboardShortcutsEnabled: boolean;
   hideEdgeRules: boolean;
+  showMiniMap: boolean;
+  showCanvasControls: boolean;
+  canvasBackground: CanvasBackgroundVariant;
 
+  setTheme: (theme: 'light' | 'dark') => void;
   toggleTheme: () => void;
   setActiveTab: (tab: 'check' | 'tests') => void;
   setInspectorOpen: (open: boolean) => void;
@@ -73,6 +80,7 @@ export interface UiSlice {
   setSessionDrawerOpen: (open: boolean) => void;
   setAlphabetModalOpen: (open: boolean) => void;
   setExportModalOpen: (open: boolean) => void;
+  setSettingsModalOpen: (open: boolean) => void;
   openRuleModal: (data: RuleModalData) => void;
   closeRuleModal: () => void;
   openConfirmModal: (data: ConfirmModalData) => void;
@@ -82,6 +90,10 @@ export interface UiSlice {
   setKeyboardShortcutsEnabled: (enabled: boolean) => void;
   toggleHideEdgeRules: () => void;
   setHideEdgeRules: (hide: boolean) => void;
+  setShowMiniMap: (show: boolean) => void;
+  setShowCanvasControls: (show: boolean) => void;
+  setCanvasBackground: (variant: CanvasBackgroundVariant) => void;
+  resetCosmeticSettings: () => void;
 }
 
 export interface ProjectSlice {
