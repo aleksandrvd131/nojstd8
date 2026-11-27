@@ -1,6 +1,6 @@
 {
   "3": "wireLayout.ts",
+  "8": "package.json",
   "9": "check-graph-freshness.mjs",
-  "23": "TuringCanvas",
   "24": "Bi-directional Binding (Canvas <-> Tables/Matrix)"
 }
