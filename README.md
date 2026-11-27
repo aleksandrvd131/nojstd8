@@ -51,7 +51,7 @@ npm run check:graph      # проверка актуальности артеф�
 
 ## Устройство проекта
 
-Приложение построено на React, TypeScript, React Flow, Zustand и Tailwind CSS; сборка выполняется Vite, тесты — Vitest. В ходе работы использовались ИИ-агенты ChatGPT и Gemini
+Приложение построено на React, TypeScript, React Flow, Zustand и Tailwind CSS; сборка выполняется Vite, тесты — Vitest. В ходе работы использовались ИИ-агенты ChatGPT и Gemini.
 
 ```text
 src/
