@@ -7,6 +7,7 @@ import {
 import { tokenizeTapeInput } from './simulator';
 
 const RESERVED_SYMBOLS = new Set(['L', 'R', 'N', '<', '>', '.']);
+const TERMINAL_STATE_TYPES = new Set(['halt', 'accept', 'reject']);
 
 export function validateMachine(session: ProjectSession): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -98,6 +99,41 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
         severity: 'warning',
         message: 'На операционной диаграмме отсутствует узел FINISH (точка останова).',
       });
+    }
+  }
+
+  // 2.5. Terminal Nodes Must Not Have Outgoing Transitions
+  if (mode === '5-tuple' || (mode === '4-tuple' && subMode === 'state-graph')) {
+    const outgoingRules = mode === '5-tuple' ? rules5 : rules4;
+    for (const node of nodes) {
+      const stateData = node.data as StateNodeData;
+      if (!TERMINAL_STATE_TYPES.has(stateData.stateType)) continue;
+      const outgoingEdge = edges.find((e) => e.source === node.id);
+      const hasOutgoingRule = outgoingRules.some((r) => r.fromState === node.id);
+      if (outgoingEdge || hasOutgoingRule) {
+        issues.push({
+          id: `terminal_outgoing_${node.id}`,
+          severity: 'error',
+          message: `Из конечного состояния '${stateData.label || node.id}' (${stateData.stateType}) не могут выходить переходы.`,
+          nodeId: node.id,
+          edgeId: outgoingEdge?.id,
+        });
+      }
+    }
+  } else {
+    for (const node of nodes) {
+      const opData = node.data as OperationNodeData;
+      if (opData.opType !== 'FINISH') continue;
+      const outgoing = edges.filter((e) => e.source === node.id);
+      if (outgoing.length > 0) {
+        issues.push({
+          id: `finish_outgoing_${node.id}`,
+          severity: 'error',
+          message: `Из конечного узла FINISH ('${opData.label || node.id}') не могут выходить переходы.`,
+          nodeId: node.id,
+          edgeId: outgoing[0].id,
+        });
+      }
     }
   }
 
@@ -294,6 +330,19 @@ export function validateMachine(session: ProjectSession): ValidationIssue[] {
               id: `submachine_no_finish_${node.id}`,
               severity: 'warning',
               message: `В подмашине '${found.name}' отсутствует узел FINISH.`,
+              nodeId: node.id,
+            });
+          }
+          const finishWithOutgoing = found.nodes.some(
+            (sn) =>
+              (sn.data as OperationNodeData).opType === 'FINISH' &&
+              (found.edges || []).some((se) => se.source === sn.id)
+          );
+          if (finishWithOutgoing) {
+            issues.push({
+              id: `submachine_finish_outgoing_${node.id}`,
+              severity: 'error',
+              message: `В подмашине '${found.name}' из узла FINISH выходят переходы.`,
               nodeId: node.id,
             });
           }

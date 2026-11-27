@@ -267,4 +267,33 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
     expect(DEMO_PROJECT_1.mode).toBe('5-tuple');
     expect(DEMO_PROJECT_2.mode).toBe('4-tuple');
   });
+
+  it('deletes a selected edge on Delete even when Check/Tests dropdown is open unless focus is inside the dropdown', () => {
+    const store = useTuringStore.getState();
+    const edge = store.getActiveProject().edges[0];
+    const edgesBefore = store.getActiveProject().edges.length;
+
+    useTuringStore.setState({ isInspectorOpen: true, selectedEdgeId: edge.id });
+
+    // Focus inside the dropdown -> Delete must not delete graph elements
+    const dropdown = document.createElement('div');
+    dropdown.setAttribute('data-inspector-dropdown', '');
+    const innerBtn = document.createElement('button');
+    dropdown.appendChild(innerBtn);
+    document.body.appendChild(dropdown);
+    try {
+      const blockedDel = new KeyboardEvent('keydown', { key: 'Delete', code: 'Delete', bubbles: true });
+      innerBtn.dispatchEvent(blockedDel);
+      expect(handleDebuggerKeyboardShortcut(blockedDel)).toBe(false);
+      expect(useTuringStore.getState().getActiveProject().edges).toHaveLength(edgesBefore);
+    } finally {
+      dropdown.remove();
+    }
+
+    // Focus on canvas/body while Check is open -> Delete deletes the selected edge
+    const del = new KeyboardEvent('keydown', { key: 'Delete', code: 'Delete', cancelable: true });
+    expect(handleDebuggerKeyboardShortcut(del)).toBe(true);
+    expect(useTuringStore.getState().getActiveProject().edges).toHaveLength(edgesBefore - 1);
+    expect(useTuringStore.getState().selectedEdgeId).toBeNull();
+  });
 });

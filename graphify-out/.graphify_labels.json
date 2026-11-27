@@ -1,1 +1,24 @@
-{"0": "Canvas Routing, VTM Code & Ports", "1": "Store Slices & Inspector Sync", "2": "Engine Simulation, Validation & Tape", "3": "Canvas Nodes, Edges & UI Shell", "4": "Diagram Editing & Canvas Docs", "5": "GitHub Pages Deploy Workflow", "6": "Component Architecture & Reference Docs", "7": "CI Verification Pipeline", "8": "NPM Dev Dependencies", "9": "Community 9", "10": "TypeScript Compiler Config", "11": "QA Roadmap & Turing Formalisms", "12": "LaTeX, TikZ & Document Exporters", "13": "NPM Runtime Dependencies", "14": "NPM Package Scripts", "15": "Vitest & DOM Testing Setup", "16": "Vite & Vitest Tooling", "17": "Canvas Image Export (PNG/SVG)", "18": "Project Map & Graphify Docs", "19": "Git Pre-Commit Hook", "20": "Browser Entrypoint", "21": "Tailwind CSS Config", "22": "PostCSS Config"}
+{
+  "0": "Canvas Routing, VTM Code & Ports",
+  "1": "Store Slices & Inspector Sync",
+  "2": "Engine Simulation, Validation & Tape",
+  "3": "Canvas Nodes, Edges & UI Shell",
+  "4": "Diagram Editing & Canvas Docs",
+  "5": "GitHub Pages Deploy Workflow",
+  "6": "Component Architecture & Reference Docs",
+  "7": "CI Verification Pipeline",
+  "8": "NPM Dev Dependencies",
+  "10": "TypeScript Compiler Config",
+  "11": "QA Roadmap & Turing Formalisms",
+  "12": "LaTeX, TikZ & Document Exporters",
+  "13": "NPM Runtime Dependencies",
+  "14": "NPM Package Scripts",
+  "15": "Vitest & DOM Testing Setup",
+  "16": "Vite & Vitest Tooling",
+  "17": "Canvas Image Export (PNG/SVG)",
+  "18": "Project Map & Graphify Docs",
+  "19": "Git Pre-Commit Hook",
+  "20": "Browser Entrypoint",
+  "21": "Tailwind CSS Config",
+  "22": "PostCSS Config"
+}

@@ -136,6 +136,7 @@ const TuringCanvasInner: React.FC = () => {
   const selectedEdgeId = useTuringStore(s => s.selectedEdgeId);
   const chosenEdge = edges.find(e => e.id === selectedEdgeId);
   const portError = useTuringStore(s => s.portError);
+  const clearPortError = useTuringStore(s => s.clearPortError);
   const moved = React.useRef<'source' | 'target'>();
   const mode = useTuringStore((s) => {
     const p = s.projects.find((proj) => proj.id === s.activeProjectId);
@@ -517,9 +518,30 @@ const TuringCanvasInner: React.FC = () => {
           style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.width, height: selectionRect.height }}
         />
       )}
-      {(portError || view.conflicts.size > 0) && <div role="alert" className="absolute bottom-4 left-14 z-20 rounded bg-amber-100 px-3 py-2 text-xs text-amber-950">
-        {portError ?? `Конфликт направлений (${[...view.conflicts].join(', ')}). Выберите переход и измените точку.`}
-      </div>}
+      {(portError || view.conflicts.size > 0) && (
+        <div
+          role="alert"
+          className={`absolute bottom-4 left-14 z-20 flex items-center gap-2 rounded border px-3 py-2 text-xs shadow-md ${
+            portError
+              ? 'border-rose-300 bg-rose-100 text-rose-950 dark:border-rose-800 dark:bg-rose-950/95 dark:text-rose-200'
+              : 'border-amber-300 bg-amber-100 text-amber-950 dark:border-amber-800 dark:bg-amber-950/95 dark:text-amber-200'
+          }`}
+        >
+          <span>
+            {portError ?? `Конфликт направлений (${[...view.conflicts].join(', ')}). Выберите переход и измените точку.`}
+          </span>
+          {portError && (
+            <button
+              type="button"
+              onClick={clearPortError}
+              aria-label="Закрыть сообщение об ошибке"
+              className="rounded px-1 text-rose-700 hover:bg-rose-200/70 dark:text-rose-300 dark:hover:bg-rose-900/60"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
       {isVTMCodeOpen && (
         <div className="absolute left-3 top-14 z-20 flex max-h-[calc(100%-4rem)] w-80 flex-col overflow-hidden rounded-md border border-zinc-300 bg-white shadow-lg dark:border-zinc-600 dark:bg-zinc-900">
           <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 text-xs font-medium dark:border-zinc-800">
@@ -574,6 +596,7 @@ const TuringCanvasInner: React.FC = () => {
           setSelectedNodeId(null);
           setSelectedEdgeId(null);
           setContextMenu(null);
+          if (portError) clearPortError();
         }}
         fitView
         fitViewOptions={defaultFitViewOptions}

@@ -607,6 +607,49 @@ describe('Validator', () => {
     expect(issues.some((i) => i.id === 'unknown_initial_tape_symbols')).toBe(true);
     expect(issues.some((i) => i.id === 'unknown_test_symbols_tc_bad')).toBe(true);
   });
+
+  it('flags outgoing transitions from FINISH and terminal halt/accept/reject states as errors', () => {
+    const finishOutgoingProj: ProjectSession = {
+      ...DEMO_PROJECT_3,
+      edges: [
+        ...DEMO_PROJECT_3.edges,
+        {
+          id: 'e_finish_back',
+          source: 'vtm_finish',
+          target: 'vtm_start',
+          type: 'customTransition',
+          data: {
+            mode: '4-tuple',
+            subMode: 'operational',
+            rules: [{ id: 'r_fin_bad', readSymbol: '0', isComplement: true }],
+          },
+        },
+      ],
+    };
+    const opIssues = validateMachine(finishOutgoingProj);
+    const finishIssue = opIssues.find((i) => i.id === 'finish_outgoing_vtm_finish');
+    expect(finishIssue).toBeDefined();
+    expect(finishIssue?.severity).toBe('error');
+    expect(finishIssue?.edgeId).toBe('e_finish_back');
+
+    const haltOutgoingProj: ProjectSession = {
+      ...DEMO_PROJECT_1,
+      edges: [
+        ...DEMO_PROJECT_1.edges,
+        {
+          id: 'e_halt_back',
+          source: 'q_halt',
+          target: 'q0',
+          type: 'customTransition',
+          data: { mode: '5-tuple', subMode: 'state-graph', rules: [] },
+        },
+      ],
+    };
+    const stateIssues = validateMachine(haltOutgoingProj);
+    const haltIssue = stateIssues.find((i) => i.id === 'terminal_outgoing_q_halt');
+    expect(haltIssue).toBeDefined();
+    expect(haltIssue?.severity).toBe('error');
+  });
 });
 
 describe('Exporters', () => {
@@ -1099,5 +1142,37 @@ describe('Zustand Store Reactivity & Mutations', () => {
       targetHandle: 'right',
     });
     expect(useTuringStore.getState().portError).toBeTruthy();
+
+    // Outgoing connections from FINISH (and halt states) must be rejected with portError
+    store.clearPortError();
+    store.onConnect({
+      source: 'vtm_finish',
+      target: 'vtm_start',
+      sourceHandle: 'left',
+      targetHandle: 'right',
+    });
+    expect(useTuringStore.getState().isRuleModalOpen).toBe(false);
+    expect(useTuringStore.getState().portError).toMatch(/FINISH/i);
+
+    store.reconnectEdge('e_vtm_1', {
+      source: 'vtm_finish',
+      target: 'vtm_mark_x',
+      sourceHandle: null,
+      targetHandle: null,
+    });
+    expect(useTuringStore.getState().portError).toMatch(/FINISH/i);
+    expect(
+      useTuringStore.getState().getActiveProject().edges.find((e) => e.id === 'e_vtm_1')?.source
+    ).toBe('vtm_start');
+
+    store.switchProject(DEMO_PROJECT_1.id);
+    store.onConnect({
+      source: 'q_halt',
+      target: 'q0',
+      sourceHandle: 'left',
+      targetHandle: 'right',
+    });
+    expect(useTuringStore.getState().isRuleModalOpen).toBe(false);
+    expect(useTuringStore.getState().portError).toMatch(/q_halt/);
   });
 });

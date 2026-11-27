@@ -102,6 +102,7 @@ export interface GraphSlice {
   editorUndoStack: EditorSnapshot[];
   editorRedoStack: EditorSnapshot[];
   portError: string | null;
+  clearPortError: () => void;
 
   pushEditorSnapshot: (snapshot?: EditorSnapshot) => void;
   clearEditorHistory: () => void;

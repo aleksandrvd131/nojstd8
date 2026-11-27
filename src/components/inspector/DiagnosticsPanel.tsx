@@ -15,8 +15,13 @@ export const DiagnosticsPanel: React.FC = () => {
   const infos = issues.filter((i) => i.severity === 'info');
 
   const handleIssueClick = (nodeId?: string, edgeId?: string) => {
-    if (nodeId) setSelectedNodeId(nodeId);
-    if (edgeId) setSelectedEdgeId(edgeId);
+    if (edgeId) {
+      setSelectedEdgeId(edgeId);
+      setSelectedNodeId(null);
+    } else if (nodeId) {
+      setSelectedNodeId(nodeId);
+      setSelectedEdgeId(null);
+    }
   };
 
   return (

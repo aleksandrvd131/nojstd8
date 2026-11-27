@@ -29,6 +29,9 @@ export const CustomTransitionEdge = memo(
   }: EdgeProps) => {
     const edgeData = data as unknown as CustomEdgeData;
     const runtimeActiveEdgeId = useTuringStore((s) => s.runtime.activeEdgeId);
+    const selectedEdgeId = useTuringStore((s) => s.selectedEdgeId);
+    const setSelectedEdgeId = useTuringStore((s) => s.setSelectedEdgeId);
+    const setSelectedNodeId = useTuringStore((s) => s.setSelectedNodeId);
     const openRuleModal = useTuringStore((s) => s.openRuleModal);
     const deleteFiveTupleRule = useTuringStore((s) => s.deleteFiveTupleRule);
     const deleteFourTupleRule = useTuringStore((s) => s.deleteFourTupleRule);
@@ -37,6 +40,7 @@ export const CustomTransitionEdge = memo(
     const mode = edgeData?.mode || '5-tuple';
     const subMode = edgeData?.subMode;
     const isActive = runtimeActiveEdgeId === id;
+    const isSelected = Boolean(selected || selectedEdgeId === id);
 
     const wire = edgeData?.wire as Wire | undefined;
     const isSelfLoop = source === target;
@@ -156,6 +160,7 @@ export const CustomTransitionEdge = memo(
       startY: number;
       originX: number;
       originY: number;
+      moved: boolean;
     } | null>(null);
 
     const handleDragStart = (e: React.MouseEvent) => {
@@ -167,30 +172,42 @@ export const CustomTransitionEdge = memo(
         startY: e.clientY,
         originX: offset.x,
         originY: offset.y,
+        moved: false,
       };
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         if (!dragRef.current) return;
+        const dx = moveEvent.clientX - dragRef.current.startX;
+        const dy = moveEvent.clientY - dragRef.current.startY;
+        if (Math.abs(dx) >= 3 || Math.abs(dy) >= 3) {
+          dragRef.current.moved = true;
+        }
         const nextOffset = {
-          x: dragRef.current.originX + (moveEvent.clientX - dragRef.current.startX),
-          y: dragRef.current.originY + (moveEvent.clientY - dragRef.current.startY),
+          x: dragRef.current.originX + dx,
+          y: dragRef.current.originY + dy,
         };
         latestOffsetRef.current = nextOffset;
         setOffset(nextOffset);
       };
 
       const onMouseUp = () => {
+        const wasMoved = dragRef.current?.moved ?? false;
         dragRef.current = null;
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
-        updateEdgeLabelOffset(id, latestOffsetRef.current);
+        if (wasMoved) {
+          updateEdgeLabelOffset(id, latestOffsetRef.current);
+        } else {
+          setSelectedEdgeId(id);
+          setSelectedNodeId(null);
+        }
       };
 
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
     };
 
-    const showActionWindow = !!(selected || isActive);
+    const showActionWindow = !!(isSelected || isActive);
 
     return (
       <>
@@ -203,10 +220,10 @@ export const CustomTransitionEdge = memo(
           style={{
             stroke: isActive
               ? '#f59e0b'
-              : selected
+              : isSelected
               ? '#0284c7'
               : '#71717a',
-            strokeWidth: isActive ? 2.5 : selected ? 2 : 1.5,
+            strokeWidth: isActive ? 2.5 : isSelected ? 2 : 1.5,
             strokeDasharray: isActive ? '5 4' : undefined,
             cursor: 'pointer',
             transition: 'stroke 0.15s, stroke-width 0.15s',

@@ -59,7 +59,8 @@ export function handleDebuggerKeyboardShortcut(
   }
 
   // Delete / Backspace: Remove currently selected node or edge (when no modal/drawer blocks the editor)
-  const blocksGraphDelete = hasBlockingOverlay || store.isInspectorOpen;
+  const inInspectorDropdown = Boolean(target?.closest?.('[data-inspector-dropdown]'));
+  const blocksGraphDelete = hasBlockingOverlay || inInspectorDropdown;
 
   const isDeleteKey =
     e.code === 'Delete' ||

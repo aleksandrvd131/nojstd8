@@ -73,6 +73,23 @@ describe('React UI Components', () => {
       useTuringStore.getState().updateNodeData('vtm_start', { opType: 'SHIFT_R' });
     });
     expect(screen.getByText(/отсутствует узел START/i)).toBeInTheDocument();
+
+    // Outgoing edge from FINISH -> DiagnosticsPanel must show error and clicking it selects the offending edge
+    act(() => {
+      useTuringStore.getState().updateNodeData('vtm_start', { opType: 'START' });
+      useTuringStore.getState().upsertOperationalEdgeRule({
+        sourceNodeId: 'vtm_finish',
+        targetNodeId: 'vtm_start',
+        readSymbol: '0',
+        isWildcard: false,
+        isComplement: true,
+      });
+    });
+    const finishErr = screen.getByText(/Из конечного узла FINISH/i);
+    expect(finishErr).toBeInTheDocument();
+    fireEvent.click(finishErr);
+    expect(useTuringStore.getState().selectedEdgeId).toBe('edge_vtm_finish_vtm_start');
+    expect(useTuringStore.getState().selectedNodeId).toBeNull();
   });
 
   it('RuleModal loads and edits VTM operational edge rules including complement (¬a)', () => {

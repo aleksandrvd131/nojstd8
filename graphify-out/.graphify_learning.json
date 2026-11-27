@@ -1,5 +1,118 @@
 {
-  "generated_at": "2026-11-25T09:25:50.850085+00:00",
-  "nodes": {},
+  "generated_at": "2026-11-27T13:13:50.664156+00:00",
+  "nodes": {
+    "docs_map_components_matrixeditor": {
+      "code_fingerprint": "c3e99f754e72eae73cacbb2b1f16a41f5b5796f0f66e12e4752a9f60115e508e",
+      "label": "MatrixEditor",
+      "last": "2026-11-25T09:27:34.883713+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-25T09:27:34.883713+00:00",
+          "outcome": "useful",
+          "q": "просмотри проект и расскажи, что в нем хорошо, а что нет, что можно изменить, исправить"
+        }
+      ],
+      "score": 0.951381425,
+      "source_file": "docs/MAP_COMPONENTS.md",
+      "status": "tentative",
+      "uses": 1
+    },
+    "docs_map_components_rulemodal": {
+      "code_fingerprint": "c3e99f754e72eae73cacbb2b1f16a41f5b5796f0f66e12e4752a9f60115e508e",
+      "label": "RuleModal",
+      "last": "2026-11-25T09:27:34.883713+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-25T09:27:34.883713+00:00",
+          "outcome": "useful",
+          "q": "просмотри проект и расскажи, что в нем хорошо, а что нет, что можно изменить, исправить"
+        }
+      ],
+      "score": 0.951381425,
+      "source_file": "docs/MAP_COMPONENTS.md",
+      "status": "tentative",
+      "uses": 1
+    },
+    "docs_map_components_tupletableeditor": {
+      "code_fingerprint": "c3e99f754e72eae73cacbb2b1f16a41f5b5796f0f66e12e4752a9f60115e508e",
+      "label": "TupleTableEditor",
+      "last": "2026-11-25T09:27:34.883713+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-25T09:27:34.883713+00:00",
+          "outcome": "useful",
+          "q": "просмотри проект и расскажи, что в нем хорошо, а что нет, что можно изменить, исправить"
+        }
+      ],
+      "score": 0.951381425,
+      "source_file": "docs/MAP_COMPONENTS.md",
+      "status": "tentative",
+      "uses": 1
+    },
+    "docs_map_engine_compileoperationaldiagramto4tuples": {
+      "code_fingerprint": "8c5caefd6d3db8768314a24e18b20b59dfd3a60b61a7dc5e4e34f7e2c03d8fc8",
+      "label": "compileOperationalDiagramTo4Tuples",
+      "last": "2026-11-25T09:27:34.883713+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-25T09:27:34.883713+00:00",
+          "outcome": "useful",
+          "q": "просмотри проект и расскажи, что в нем хорошо, а что нет, что можно изменить, исправить"
+        }
+      ],
+      "score": 0.951381425,
+      "source_file": "docs/MAP_ENGINE.md",
+      "status": "tentative",
+      "uses": 1
+    },
+    "docs_map_engine_stepmachine": {
+      "code_fingerprint": "8c5caefd6d3db8768314a24e18b20b59dfd3a60b61a7dc5e4e34f7e2c03d8fc8",
+      "label": "stepMachine",
+      "last": "2026-11-25T09:27:34.883713+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-25T09:27:34.883713+00:00",
+          "outcome": "useful",
+          "q": "просмотри проект и расскажи, что в нем хорошо, а что нет, что можно изменить, исправить"
+        }
+      ],
+      "score": 0.951381425,
+      "source_file": "docs/MAP_ENGINE.md",
+      "status": "tentative",
+      "uses": 1
+    },
+    "docs_map_engine_validatemachine": {
+      "code_fingerprint": "8c5caefd6d3db8768314a24e18b20b59dfd3a60b61a7dc5e4e34f7e2c03d8fc8",
+      "label": "validateMachine",
+      "last": "2026-11-25T09:27:34.883713+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-25T09:27:34.883713+00:00",
+          "outcome": "useful",
+          "q": "просмотри проект и расскажи, что в нем хорошо, а что нет, что можно изменить, исправить"
+        }
+      ],
+      "score": 0.951381425,
+      "source_file": "docs/MAP_ENGINE.md",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_store_useturingstore_useturingstore": {
+      "code_fingerprint": "917ed1f0f5b40544e40673e28e28be25136cce56455e817c84de71cce05f1e9b",
+      "label": "useTuringStore",
+      "last": "2026-11-25T09:27:34.883713+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-25T09:27:34.883713+00:00",
+          "outcome": "useful",
+          "q": "просмотри проект и расскажи, что в нем хорошо, а что нет, что можно изменить, исправить"
+        }
+      ],
+      "score": 0.951381425,
+      "source_file": "src/store/useTuringStore.ts",
+      "status": "tentative",
+      "uses": 1
+    }
+  },
   "version": 1
 }

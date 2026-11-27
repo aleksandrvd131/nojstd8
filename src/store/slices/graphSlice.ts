@@ -4,6 +4,7 @@ import {
   TuringNode,
   TuringEdge,
   StateNodeType,
+  StateNodeData,
   OperationalNodeType,
   OperationNodeData,
   SubMachine,
@@ -48,6 +49,24 @@ function applyEditorSnapshot(prev: ProjectSession, snapshot: EditorSnapshot): Pr
   };
 }
 
+const TERMINAL_STATE_TYPES = new Set<StateNodeType>(['halt', 'accept', 'reject']);
+
+function getTerminalSourceError(node: TuringNode | undefined): string | null {
+  if (!node) return null;
+  if (node.type === 'operationNode') {
+    const opData = node.data as OperationNodeData;
+    if (opData.opType === 'FINISH') {
+      return 'Невозможно провести переход из конечного узла FINISH (точки останова).';
+    }
+    return null;
+  }
+  const stateData = node.data as StateNodeData;
+  if (TERMINAL_STATE_TYPES.has(stateData.stateType)) {
+    return `Невозможно провести переход из конечного состояния '${stateData.label || node.id}' (${stateData.stateType}).`;
+  }
+  return null;
+}
+
 export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
   let pendingDragSnapshot: EditorSnapshot | null = null;
   let lastNodeEditMeta: { id: string; at: number } | null = null;
@@ -56,6 +75,7 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
     editorUndoStack: [],
     editorRedoStack: [],
     portError: null,
+    clearPortError: () => set({ portError: null }),
 
     pushEditorSnapshot: (snapshot?: EditorSnapshot) => {
       const snap = snapshot ?? captureEditorSnapshot(get().getActiveProject());
@@ -245,6 +265,12 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
         return;
       }
       const project = get().getActiveProject();
+      const sourceNode = project.nodes.find((n) => n.id === connection.source);
+      const terminalError = getTerminalSourceError(sourceNode);
+      if (terminalError) {
+        set({ portError: terminalError });
+        return;
+      }
       const previous = project.edges.find(
         (e) => e.source === connection.source && e.target === connection.target
       );
@@ -283,6 +309,12 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
     reconnectEdge: (edgeId: string, connection: Connection, moved?: 'source' | 'target') => {
       if (!connection.source || !connection.target) return;
       const project = get().getActiveProject();
+      const sourceNode = project.nodes.find((n) => n.id === connection.source);
+      const terminalError = getTerminalSourceError(sourceNode);
+      if (terminalError) {
+        set({ portError: terminalError });
+        return;
+      }
       const current = project.edges.find((e) => e.id === edgeId);
       if (!current) return;
 
