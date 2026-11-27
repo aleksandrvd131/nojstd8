@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ProjectSession, TuringNode, TuringEdge } from '../types/turing';
-import { DEMO_PROJECT_1, DEMO_PROJECT_2, DEMO_PROJECT_3, INITIAL_PROJECTS } from '../store/demoProjects';
+import { DEMO_PROJECT_1, DEMO_PROJECT_2, DEMO_PROJECT_3 } from '../store/demoProjects';
 import {
   useTuringStore,
   autoLayoutGraph,
@@ -28,7 +28,9 @@ import {
 } from './exporter';
 
 function resetStore() {
-  const freshProjects: ProjectSession[] = JSON.parse(JSON.stringify(INITIAL_PROJECTS));
+  const freshProjects: ProjectSession[] = JSON.parse(
+    JSON.stringify([DEMO_PROJECT_1, DEMO_PROJECT_2, DEMO_PROJECT_3])
+  );
   useTuringStore.setState({
     projects: freshProjects,
     activeProjectId: freshProjects[0].id,
@@ -259,6 +261,18 @@ describe('Simulator & Demo Projects', () => {
   });
 
   it('executes Demo Project 3 (Operational VTM) and passes all its copy test cases', () => {
+    let entryState = initRuntimeState(DEMO_PROJECT_3);
+    expect(entryState.headPosition).toBe(3);
+    let entrySteps = 0;
+    while (entryState.status !== 'halted' && entryState.status !== 'error' && entrySteps < 150) {
+      entryState = stepMachine(DEMO_PROJECT_3, entryState);
+      entrySteps++;
+    }
+    expect(entryState.status).toBe('halted');
+    expect(entryState.currentNodeId).toBe('vtm_finish');
+    expect(entryState.tape[3]).toBe('1');
+    expect(entryState.tape[4]).toBe('1');
+
     let state = initRuntimeState(DEMO_PROJECT_3, '1#');
     let steps = 0;
     while (state.status !== 'halted' && state.status !== 'error' && steps < 100) {
@@ -740,7 +754,7 @@ describe('Zustand Store Reactivity & Mutations', () => {
     expect(rt.tape[0]).toBe('1');
     expect(rt.tape[1]).toBe('a0');
     expect(rt.tape[2]).toBe('1');
-    expect(rt.headPosition).toBe(0);
+    expect(rt.headPosition).toBe(3);
     expect(rt.stepCount).toBe(0);
   });
 
@@ -1066,5 +1080,24 @@ describe('Zustand Store Reactivity & Mutations', () => {
     expect(reciprocalPorts[0].sourceHandle).not.toBe(reciprocalPorts[1].targetHandle);
     expect(reciprocalPorts[0].targetHandle).not.toBe(reciprocalPorts[1].sourceHandle);
     expect(findFeedbackEdgeIds(reciprocalNodes, reciprocalEdges).has('return')).toBe(true);
+
+    // Self-loop on the same handle must be rejected by onConnect and reconnectEdge
+    store.switchProject(DEMO_PROJECT_3.id);
+    store.onConnect({
+      source: 'vtm_mark_x',
+      target: 'vtm_mark_x',
+      sourceHandle: 'right',
+      targetHandle: 'right',
+    });
+    expect(useTuringStore.getState().isRuleModalOpen).toBe(false);
+    expect(useTuringStore.getState().portError).toBeTruthy();
+
+    store.reconnectEdge('e_vtm_find_loop', {
+      source: 'vtm_find_mark',
+      target: 'vtm_find_mark',
+      sourceHandle: 'right',
+      targetHandle: 'right',
+    });
+    expect(useTuringStore.getState().portError).toBeTruthy();
   });
 });

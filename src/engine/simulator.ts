@@ -69,7 +69,12 @@ export function initRuntimeState(
   customHeadPos?: number
 ): RuntimeState {
   let initialTape: SparseTape = { ...session.initialTape };
-  let headPosition = customHeadPos !== undefined ? customHeadPos : session.initialHeadPosition || 0;
+  let headPosition =
+    customHeadPos !== undefined
+      ? customHeadPos
+      : customInputString !== undefined
+      ? 0
+      : session.initialHeadPosition || 0;
 
   if (customInputString !== undefined) {
     initialTape = {};

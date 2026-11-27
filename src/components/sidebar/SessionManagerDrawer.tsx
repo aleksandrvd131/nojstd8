@@ -14,7 +14,7 @@ import {
   Sparkles,
   AlertCircle,
 } from 'lucide-react';
-import { TuringMode, FourTupleSubMode, ProjectSession } from '../../types/turing';
+import { ProjectSession } from '../../types/turing';
 import { exportProjectToJSON, importProjectFromJSON } from '../../engine/exporter';
 
 export const SessionManagerDrawer: React.FC = () => {
@@ -38,8 +38,6 @@ export const SessionManagerDrawer: React.FC = () => {
   // New project modal state
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectMode, setNewProjectMode] = useState<TuringMode>('5-tuple');
-  const [newProjectSubMode, setNewProjectSubMode] = useState<FourTupleSubMode>('state-graph');
 
   if (!isSessionDrawerOpen) return null;
 
@@ -63,7 +61,7 @@ export const SessionManagerDrawer: React.FC = () => {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    createProject(newProjectMode, newProjectSubMode, newProjectName.trim() || undefined);
+    createProject('4-tuple', 'operational', newProjectName.trim() || undefined);
     setIsCreatingNew(false);
     setNewProjectName('');
   };
@@ -204,38 +202,6 @@ export const SessionManagerDrawer: React.FC = () => {
               autoFocus
             />
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] font-semibold text-zinc-500 mb-1">
-                  Математический режим
-                </label>
-                <select
-                  value={newProjectMode}
-                  onChange={(e) => setNewProjectMode(e.target.value as TuringMode)}
-                  className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
-                >
-                  <option value="5-tuple">5-кортежи (q, a, a', d, q')</option>
-                  <option value="4-tuple">4-кортежи (q, a, C, q')</option>
-                </select>
-              </div>
-
-              {newProjectMode === '4-tuple' && (
-                <div>
-                  <label className="block text-[11px] font-semibold text-zinc-500 mb-1">
-                    Визуальное представление
-                  </label>
-                  <select
-                    value={newProjectSubMode}
-                    onChange={(e) => setNewProjectSubMode(e.target.value as FourTupleSubMode)}
-                    className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200"
-                  >
-                    <option value="state-graph">Граф состояний</option>
-                    <option value="operational">Операционная диаграмма VTM</option>
-                  </select>
-                </div>
-              )}
-            </div>
-
             <button
               type="submit"
               className="w-full py-2 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white"
@@ -249,7 +215,6 @@ export const SessionManagerDrawer: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {filteredProjects.map((p) => {
             const isActive = p.id === activeProjectId;
-            const ruleCount = p.mode === '5-tuple' ? p.rules5.length : p.rules4.length;
             const dateStr = new Date(p.updatedAt).toLocaleDateString('ru-RU', {
               day: 'numeric',
               month: 'short',
@@ -380,12 +345,12 @@ export const SessionManagerDrawer: React.FC = () => {
                 {/* Badges / Stats */}
                 <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-[11px] text-zinc-500">
                   <span className="font-semibold text-zinc-700 dark:text-zinc-300">
-                    {p.mode === '5-tuple' ? 'Пятёрки (5-tuple)' : `Четвёрки (${p.subMode})`}
+                    VTM
                   </span>
                   <span>•</span>
-                  <span>{p.nodes.length} состояний/узлов</span>
+                  <span>{p.nodes.length} узлов</span>
                   <span>•</span>
-                  <span>{ruleCount} правил</span>
+                  <span>{p.edges.length} связей</span>
                   <span>•</span>
                   <span className="flex items-center gap-1 text-[10px]">
                     <Calendar className="w-3 h-3 text-zinc-400" />

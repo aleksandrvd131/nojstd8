@@ -6,6 +6,29 @@ export function handleDebuggerKeyboardShortcut(
   store = useTuringStore.getState()
 ): boolean {
   const target = e.target as HTMLElement | null;
+  const hasBlockingOverlay =
+    store.isRuleModalOpen ||
+    store.isAlphabetModalOpen ||
+    store.isExportModalOpen ||
+    store.isSessionDrawerOpen ||
+    store.confirmModal !== null;
+
+  if ((e.code === 'Escape' || e.key === 'Escape') && store.isInspectorOpen && !hasBlockingOverlay) {
+    const inExternalInput =
+      target &&
+      !target.closest?.('[data-inspector-dropdown]') &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable ||
+        target.closest?.('[data-tape-strip]'));
+    if (!inExternalInput) {
+      e.preventDefault();
+      store.setInspectorOpen(false);
+      return true;
+    }
+  }
+
   if (
     target &&
     (target.tagName === 'INPUT' ||
@@ -36,12 +59,7 @@ export function handleDebuggerKeyboardShortcut(
   }
 
   // Delete / Backspace: Remove currently selected node or edge (when no modal/drawer blocks the editor)
-  const hasBlockingOverlay =
-    store.isRuleModalOpen ||
-    store.isAlphabetModalOpen ||
-    store.isExportModalOpen ||
-    store.isSessionDrawerOpen ||
-    store.confirmModal !== null;
+  const blocksGraphDelete = hasBlockingOverlay || store.isInspectorOpen;
 
   const isDeleteKey =
     e.code === 'Delete' ||
@@ -49,7 +67,7 @@ export function handleDebuggerKeyboardShortcut(
     e.key === 'Delete' ||
     e.key === 'Backspace';
 
-  if (isDeleteKey && !e.ctrlKey && !e.metaKey && !e.altKey && !hasBlockingOverlay) {
+  if (isDeleteKey && !e.ctrlKey && !e.metaKey && !e.altKey && !blocksGraphDelete) {
     const project = store.getActiveProject();
     const selectedNodes = project.nodes.filter((node) => node.selected).map((node) => node.id);
     const selectedEdges = project.edges.filter((edge) => edge.selected).map((edge) => edge.id);
@@ -70,6 +88,25 @@ export function handleDebuggerKeyboardShortcut(
       e.preventDefault();
       store.onEdgesChange([{ type: 'remove', id: store.selectedEdgeId }]);
       store.setSelectedEdgeId(null);
+      return true;
+    }
+  }
+
+  // Direct keyboard write into current tape cell when no modal/drawer/dropdown blocks
+  if (
+    !blocksGraphDelete &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    !e.altKey &&
+    e.key.length === 1 &&
+    e.code !== 'Space' &&
+    e.code !== 'KeyR'
+  ) {
+    const project = store.getActiveProject();
+    const allSymbols = [...project.alphabet.symbols, project.alphabet.blankSymbol];
+    if (allSymbols.includes(e.key)) {
+      e.preventDefault();
+      store.setTapeCell(store.runtime.headPosition, e.key);
       return true;
     }
   }

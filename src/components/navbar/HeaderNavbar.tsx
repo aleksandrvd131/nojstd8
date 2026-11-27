@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
+import { validateMachine } from '../../engine/validator';
 import {
   FolderOpen,
   BookOpen,
@@ -9,25 +10,44 @@ import {
   Info,
   Check,
   Edit2,
+  ShieldCheck,
+  CheckSquare,
 } from 'lucide-react';
 
 export const HeaderNavbar: React.FC = () => {
   const theme = useTuringStore((s) => s.theme);
   const toggleTheme = useTuringStore((s) => s.toggleTheme);
+  const activeTab = useTuringStore((s) => s.activeTab);
+  const setActiveTab = useTuringStore((s) => s.setActiveTab);
+  const isInspectorOpen = useTuringStore((s) => s.isInspectorOpen);
+  const setInspectorOpen = useTuringStore((s) => s.setInspectorOpen);
   const setSessionDrawerOpen = useTuringStore((s) => s.setSessionDrawerOpen);
   const setAlphabetModalOpen = useTuringStore((s) => s.setAlphabetModalOpen);
   const setExportModalOpen = useTuringStore((s) => s.setExportModalOpen);
-  const switchMode = useTuringStore((s) => s.switchMode);
   const renameProject = useTuringStore((s) => s.renameProject);
   const updateProjectDescription = useTuringStore((s) => s.updateProjectDescription);
   const projects = useTuringStore((s) => s.projects);
 
   const project = useActiveProject();
+  const errorCount = useMemo(
+    () => validateMachine(project).filter((i) => i.severity === 'error').length,
+    [project]
+  );
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState(project.name);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [descInput, setDescInput] = useState(project.description);
+
+  const handleToggleToolsTab = (tab: 'check' | 'tests') => {
+    setIsDescriptionOpen(false);
+    if (isInspectorOpen && activeTab === tab) {
+      setInspectorOpen(false);
+    } else {
+      setActiveTab(tab);
+      setInspectorOpen(true);
+    }
+  };
 
   const handleTitleSubmit = () => {
     if (titleInput.trim()) {
@@ -139,50 +159,53 @@ export const HeaderNavbar: React.FC = () => {
         </div>
       </div>
 
-      {/* Center: Minimalist Mode Switcher */}
-      <div className="flex items-center bg-zinc-100 dark:bg-zinc-800/90 p-0.5 rounded border border-zinc-200 dark:border-zinc-700/80 font-mono text-[11px]">
-        <button
-          type="button"
-          onClick={() => switchMode('5-tuple')}
-          className={`px-2.5 py-1 rounded transition-colors ${
-            project.mode === '5-tuple'
-              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-sm border border-zinc-200 dark:border-zinc-700'
-              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-          }`}
-          title="Классический режим 5-tuples: (q, a, a', d, q')"
-        >
-          5-Tuple
-        </button>
-
-        <button
-          type="button"
-          onClick={() => switchMode('4-tuple', 'state-graph')}
-          className={`px-2.5 py-1 rounded transition-colors ${
-            project.mode === '4-tuple' && project.subMode === 'state-graph'
-              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-sm border border-zinc-200 dark:border-zinc-700'
-              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-          }`}
-          title="Режим 4-tuples: Граф состояний с раздельным сдвигом/записью"
-        >
-          4-Tuple (Граф)
-        </button>
-
-        <button
-          type="button"
-          onClick={() => switchMode('4-tuple', 'operational')}
-          className={`px-2.5 py-1 rounded transition-colors ${
-            project.mode === '4-tuple' && project.subMode === 'operational'
-              ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-bold shadow-sm border border-zinc-200 dark:border-zinc-700'
-              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
-          }`}
-          title="Режим 4-tuples: Операционная блок-схема VTM"
-        >
-          4-Tuple (VTM)
-        </button>
-      </div>
-
       {/* Right Controls */}
       <div className="flex items-center gap-1.5">
+        {/* Check & Tests Dropdown Triggers */}
+        <div className="flex items-center bg-zinc-100 dark:bg-zinc-800/90 p-0.5 rounded border border-zinc-200 dark:border-zinc-700/80">
+          <button
+            type="button"
+            onClick={() => handleToggleToolsTab('check')}
+            aria-expanded={isInspectorOpen && activeTab === 'check'}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors ${
+              isInspectorOpen && activeTab === 'check'
+                ? 'bg-white dark:bg-zinc-900 text-sky-600 dark:text-sky-400 font-semibold shadow-sm border border-zinc-200 dark:border-zinc-700'
+                : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100'
+            }`}
+            title="Статический анализ схемы (Check)"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Check</span>
+            {errorCount > 0 && (
+              <span className="text-[10px] px-1 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 font-mono font-bold">
+                {errorCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleToggleToolsTab('tests')}
+            aria-expanded={isInspectorOpen && activeTab === 'tests'}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors ${
+              isInspectorOpen && activeTab === 'tests'
+                ? 'bg-white dark:bg-zinc-900 text-sky-600 dark:text-sky-400 font-semibold shadow-sm border border-zinc-200 dark:border-zinc-700'
+                : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100'
+            }`}
+            title="Пакетное тестирование (Тесты)"
+          >
+            <CheckSquare className="w-3.5 h-3.5" />
+            <span>Тесты</span>
+            {project.testCases.length > 0 && (
+              <span className="text-[10px] px-1 rounded bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-mono">
+                {project.testCases.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-0.5 hidden sm:block" />
+
         {/* Alphabet Trigger */}
         <button
           type="button"

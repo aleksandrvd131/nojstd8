@@ -126,7 +126,7 @@ const TuringCanvasInner: React.FC = () => {
     return view.edges.map((edge) => ({
       ...edge,
       data: {
-        ...(edge.data ?? { rules: [], mode: '5-tuple' as const }),
+        ...(edge.data ?? { rules: [], mode: '4-tuple' as const, subMode: 'operational' as const }),
         wire: wires.get(edge.id),
       },
     }));
@@ -139,11 +139,11 @@ const TuringCanvasInner: React.FC = () => {
   const moved = React.useRef<'source' | 'target'>();
   const mode = useTuringStore((s) => {
     const p = s.projects.find((proj) => proj.id === s.activeProjectId);
-    return p ? p.mode : '5-tuple';
+    return p ? p.mode : '4-tuple';
   });
   const subMode = useTuringStore((s) => {
     const p = s.projects.find((proj) => proj.id === s.activeProjectId);
-    return p ? p.subMode : 'state-graph';
+    return p ? p.subMode : 'operational';
   });
   const firstAlphabetSymbol = useTuringStore((s) => {
     const p = s.projects.find((proj) => proj.id === s.activeProjectId);

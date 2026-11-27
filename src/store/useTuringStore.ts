@@ -45,6 +45,23 @@ export const useTuringStore = create<TuringStoreState>()(
         executionSpeedMs: state.executionSpeedMs,
         keyboardShortcutsEnabled: state.keyboardShortcutsEnabled,
       }),
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState ?? {}) as Partial<TuringStoreState>;
+        const rawProjects = Array.isArray(persisted.projects) ? persisted.projects : [];
+        const vtmProjects = rawProjects.filter(
+          (p) => p.mode === '4-tuple' && p.subMode === 'operational'
+        );
+        const projects = vtmProjects.length > 0 ? vtmProjects : INITIAL_PROJECTS;
+        const activeProjectId = projects.some((p) => p.id === persisted.activeProjectId)
+          ? (persisted.activeProjectId as string)
+          : projects[0].id;
+        return {
+          ...currentState,
+          ...persisted,
+          projects,
+          activeProjectId,
+        };
+      },
       onRehydrateStorage: () => (state) => {
         state?.resetExecution();
       },

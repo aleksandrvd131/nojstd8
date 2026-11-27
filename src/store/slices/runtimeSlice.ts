@@ -81,6 +81,7 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
         tape: { ...state.runtime.tape, [pos]: sym },
         recentConfigs: undefined,
       },
+      tapeError: null,
     }));
   },
 
@@ -91,16 +92,18 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
     for (let i = 0; i < tokens.length; i++) {
       newTape[startPos + i] = tokens[i];
     }
+    const endHeadPos = startPos + tokens.length;
     const baseRuntime = initRuntimeState(active);
     set({
       runtime: {
         ...baseRuntime,
         tape: newTape,
-        headPosition: startPos,
-        visitedPositions: [startPos],
+        headPosition: endHeadPos,
+        visitedPositions: [endHeadPos],
         recentConfigs: undefined,
       },
       isRunning: false,
+      tapeError: null,
     });
   },
 
@@ -116,6 +119,7 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
         recentConfigs: undefined,
       },
       isRunning: false,
+      tapeError: null,
     });
   },
 
@@ -126,6 +130,7 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
         headPosition: pos,
         recentConfigs: undefined,
       },
+      tapeError: null,
     }));
   },
 
@@ -144,6 +149,7 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
     set({
       runtime: initRuntimeState(active),
       isRunning: false,
+      tapeError: null,
     });
   },
 
@@ -152,22 +158,23 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
     set({
       runtime: initRuntimeState(active),
       isRunning: false,
+      tapeError: null,
     });
   },
 
   stepForward: () => {
     const project = get().getActiveProject();
     const nextRuntime = stepMachine(project, get().runtime);
-    set({ runtime: nextRuntime });
+    set({ runtime: nextRuntime, tapeError: null });
   },
 
   stepBack: () => {
     const prevRuntime = stepBackMachine(get().runtime);
-    set({ runtime: prevRuntime, isRunning: false });
+    set({ runtime: prevRuntime, isRunning: false, tapeError: null });
   },
 
   startRunning: () => {
-    set({ isRunning: true });
+    set({ isRunning: true, tapeError: null });
   },
 
   pauseRunning: () => {

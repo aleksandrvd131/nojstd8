@@ -48,7 +48,9 @@ export interface ConfirmModalData {
 
 export interface UiSlice {
   theme: 'light' | 'dark';
-  activeTab: 'tuples' | 'matrix' | 'check' | 'tests';
+  activeTab: 'check' | 'tests';
+  isInspectorOpen: boolean;
+  tapeError: string | null;
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
   isSessionDrawerOpen: boolean;
@@ -62,7 +64,9 @@ export interface UiSlice {
   keyboardShortcutsEnabled: boolean;
 
   toggleTheme: () => void;
-  setActiveTab: (tab: 'tuples' | 'matrix' | 'check' | 'tests') => void;
+  setActiveTab: (tab: 'check' | 'tests') => void;
+  setInspectorOpen: (open: boolean) => void;
+  setTapeError: (error: string | null) => void;
   setSelectedNodeId: (id: string | null) => void;
   setSelectedEdgeId: (id: string | null) => void;
   setSessionDrawerOpen: (open: boolean) => void;

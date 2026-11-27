@@ -42,11 +42,11 @@ export const createProjectSlice: SliceCreator<ProjectSlice> = (set, get) => ({
     }
   },
 
-  createProject: (mode: TuringMode = '5-tuple', subMode: FourTupleSubMode = 'state-graph', name?: string) => {
+  createProject: (mode: TuringMode = '4-tuple', subMode: FourTupleSubMode = 'operational', name?: string) => {
     const newId = `project_${Date.now()}`;
     const newProject: ProjectSession = {
       id: newId,
-      name: name || `Новая машина Тьюринга (${mode})`,
+      name: name || 'Новая ВТМ-схема',
       description: 'Описание и условие задачи...',
       mode,
       subMode,

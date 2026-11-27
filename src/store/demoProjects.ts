@@ -320,6 +320,36 @@ export const DEMO_PROJECT_3: ProjectSession = {
       },
     },
     {
+      id: 'vtm_seek_left',
+      type: 'operationNode',
+      position: { x: 60, y: -30 },
+      data: {
+        label: 'Шаг к слову [l]',
+        opType: 'SHIFT_L',
+        description: 'Сдвиг влево с пустой клетки после слова',
+      },
+    },
+    {
+      id: 'vtm_rewind',
+      type: 'operationNode',
+      position: { x: 240, y: -30 },
+      data: {
+        label: 'В начало [L]',
+        opType: 'SEARCH_L',
+        description: 'Переход к левой границе слова',
+      },
+    },
+    {
+      id: 'vtm_to_first',
+      type: 'operationNode',
+      position: { x: 420, y: -30 },
+      data: {
+        label: 'На первый [r]',
+        opType: 'SHIFT_R',
+        description: 'Установка головки на первый символ слова',
+      },
+    },
+    {
       id: 'vtm_mark_x',
       type: 'operationNode',
       position: { x: 260, y: 90 },
@@ -425,8 +455,64 @@ export const DEMO_PROJECT_3: ProjectSession = {
         subMode: 'operational',
         rules: [
           { id: 'r1_hash', readSymbol: '#' },
+        ],
+      },
+    },
+    {
+      id: 'e_vtm_start_seek',
+      source: 'vtm_start',
+      target: 'vtm_seek_left',
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [
           { id: 'r1_blank', readSymbol: '_' },
         ],
+      },
+    },
+    {
+      id: 'e_vtm_seek_rewind',
+      source: 'vtm_seek_left',
+      target: 'vtm_rewind',
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [{ id: 'r_seek_rewind', readSymbol: '*', isWildcard: true }],
+      },
+    },
+    {
+      id: 'e_vtm_rewind_first',
+      source: 'vtm_rewind',
+      target: 'vtm_to_first',
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [{ id: 'r_rewind_first', readSymbol: '_', isWildcard: true }],
+      },
+    },
+    {
+      id: 'e_vtm_first_mark',
+      source: 'vtm_to_first',
+      target: 'vtm_mark_x',
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [{ id: 'r_first_mark', readSymbol: '1' }],
+      },
+    },
+    {
+      id: 'e_vtm_first_finish',
+      source: 'vtm_to_first',
+      target: 'vtm_finish',
+      type: 'customTransition',
+      data: {
+        mode: '4-tuple',
+        subMode: 'operational',
+        rules: [{ id: 'r_first_finish', readSymbol: '*', isWildcard: true }],
       },
     },
     {
@@ -541,7 +627,7 @@ export const DEMO_PROJECT_3: ProjectSession = {
     1: '1',
     2: '#',
   },
-  initialHeadPosition: 0,
+  initialHeadPosition: 3,
   testCases: [
     {
       id: 'tc_vtm_1',
@@ -563,7 +649,5 @@ export const DEMO_PROJECT_3: ProjectSession = {
 };
 
 export const INITIAL_PROJECTS: ProjectSession[] = [
-  DEMO_PROJECT_1,
-  DEMO_PROJECT_2,
   DEMO_PROJECT_3,
 ];

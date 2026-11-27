@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import { tokenizeTapeInput } from '../../engine/simulator';
 import {
-  RotateCcw,
   Save,
   ArrowRight,
   ChevronLeft,
@@ -18,15 +17,13 @@ export const InfiniteTapeDock: React.FC = () => {
   const clearTape = useTuringStore((s) => s.clearTape);
   const setHeadPosition = useTuringStore((s) => s.setHeadPosition);
   const saveTapeToInitialBuffer = useTuringStore((s) => s.saveTapeToInitialBuffer);
-  const resetTapeFromInitialBuffer = useTuringStore((s) => s.resetTapeFromInitialBuffer);
+  const setTapeError = useTuringStore((s) => s.setTapeError);
 
   const project = useActiveProject();
   const { blankSymbol, symbols } = project.alphabet;
   const allSymbols = [...symbols, blankSymbol];
 
   const [inputWord, setInputWord] = useState('');
-  const [editingPos, setEditingPos] = useState<number | null>(null);
-  const [tapeWarning, setTapeWarning] = useState('');
   const [rangeOffset, setRangeOffset] = useState(0);
   const tapeStripRef = useRef<HTMLDivElement>(null);
 
@@ -50,21 +47,21 @@ export const InfiniteTapeDock: React.FC = () => {
       const tokens = tokenizeTapeInput(inputWord, project.alphabet);
       const invalid = tokens.find((symbol) => !allSymbols.includes(symbol));
       if (invalid) {
-        setTapeWarning(`Символ «${invalid}» отсутствует в алфавите.`);
+        setTapeError(`Символ «${invalid}» отсутствует в алфавите.`);
         return;
       }
       setTapeString(inputWord, 0);
       setInputWord('');
-      setTapeWarning('');
+      setTapeError(null);
+      tapeStripRef.current?.focus();
     }
   };
 
   const handleTapeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault();
-      setEditingPos(null);
       setHeadPosition(head + (event.key === 'ArrowLeft' ? -1 : 1));
-      setTapeWarning('');
+      setTapeError(null);
       tapeStripRef.current?.focus();
       return;
     }
@@ -72,21 +69,19 @@ export const InfiniteTapeDock: React.FC = () => {
     if (event.key === 'Backspace' || event.key === 'Delete') {
       event.preventDefault();
       setTapeCell(head, blankSymbol);
-      setEditingPos(null);
-      setTapeWarning('');
+      setTapeError(null);
       tapeStripRef.current?.focus();
       return;
     }
 
-    if (event.key.length === 1) {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.length === 1) {
       event.preventDefault();
       if (allSymbols.includes(event.key)) {
         setTapeCell(head, event.key);
-        setEditingPos(null);
-        setTapeWarning('');
+        setTapeError(null);
         tapeStripRef.current?.focus();
       } else {
-        setTapeWarning(`Символ «${event.key}» отсутствует в алфавите.`);
+        setTapeError(`Символ «${event.key}» отсутствует в алфавите.`);
       }
     }
   };
@@ -97,14 +92,14 @@ export const InfiniteTapeDock: React.FC = () => {
       <div className="px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 bg-zinc-50/60 dark:bg-zinc-950/60">
         {/* Quick word input */}
         <form onSubmit={handleApplyInputWord} className="flex items-center gap-1.5 flex-1 max-w-sm">
-              <input
-                type="text"
-                placeholder="Входное слово на ленту (напр. 10110)..."
-                value={inputWord}
-                onChange={(e) => {
-                  setInputWord(e.target.value);
-                  setTapeWarning('');
-                }}
+          <input
+            type="text"
+            placeholder="Входное слово на ленту (напр. 10110)..."
+            value={inputWord}
+            onChange={(e) => {
+              setInputWord(e.target.value);
+              setTapeError(null);
+            }}
             className="flex-1 px-2.5 py-1 text-xs font-mono rounded bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:border-sky-500"
           />
           <button
@@ -134,16 +129,6 @@ export const InfiniteTapeDock: React.FC = () => {
           >
             <Save className="w-3 h-3 text-zinc-500" />
             <span className="hidden sm:inline font-sans">В буфер</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={resetTapeFromInitialBuffer}
-            className="flex items-center gap-1 px-2 py-1 rounded bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 transition-colors"
-            title="Восстановить ленту из буфера (Reset Tape)"
-          >
-            <RotateCcw className="w-3 h-3 text-zinc-500" />
-            <span className="hidden sm:inline font-sans">Сброс ленты</span>
           </button>
 
           <button
@@ -189,12 +174,6 @@ export const InfiniteTapeDock: React.FC = () => {
         </div>
       </div>
 
-      {tapeWarning && (
-        <p role="status" className="px-4 pt-1 text-[11px] text-rose-600 dark:text-rose-400">
-          {tapeWarning}
-        </p>
-      )}
-
       {/* CAD Precision Tape Strip */}
       <div
         ref={tapeStripRef}
@@ -215,7 +194,6 @@ export const InfiniteTapeDock: React.FC = () => {
           const isVisited = runtime.visitedPositions.includes(pos);
           const cellValue = runtime.tape[pos] ?? blankSymbol;
           const isBlank = cellValue === blankSymbol;
-          const isEditing = editingPos === pos;
 
           return (
             <div key={pos} className="flex flex-col items-center group">
@@ -229,8 +207,9 @@ export const InfiniteTapeDock: React.FC = () => {
               {/* Cell Box */}
               <div
                 onClick={() => {
-                  setEditingPos(pos);
                   setHeadPosition(pos);
+                  setTapeError(null);
+                  tapeStripRef.current?.focus();
                 }}
                 className={`relative w-9 h-11 rounded-sm flex items-center justify-center font-mono text-sm cursor-pointer transition-colors border select-none ${
                   isHead
@@ -239,42 +218,11 @@ export const InfiniteTapeDock: React.FC = () => {
                     ? 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 font-bold hover:border-zinc-400 dark:hover:border-zinc-500'
                     : 'bg-zinc-50/50 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 hover:border-zinc-300 dark:hover:border-zinc-700'
                 }`}
-                title={`Ячейка [${pos}]. Кликните для выбора символа или перемещения головки.`}
+                title={`Ячейка [${pos}]. Кликните и введите символ с клавиатуры (Backspace — очистить).`}
               >
-                {isEditing ? (
-                  <select
-                    value={cellValue}
-                    onChange={(e) => {
-                      setTapeCell(pos, e.target.value);
-                      setEditingPos(null);
-                      tapeStripRef.current?.focus();
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setEditingPos(null);
-                        return;
-                      }
-                      if (e.key.length === 1 && allSymbols.includes(e.key)) {
-                        e.preventDefault();
-                        setTapeCell(pos, e.key);
-                        setEditingPos(null);
-                      }
-                    }}
-                    onBlur={() => setEditingPos(null)}
-                    autoFocus
-                    className="w-full h-full bg-transparent text-center font-mono font-bold text-sm focus:outline-none cursor-pointer"
-                  >
-                    {allSymbols.map((s) => (
-                      <option key={s} value={s} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className={isBlank ? 'text-zinc-400 dark:text-zinc-600 font-light' : 'font-bold'}>
-                    {cellValue}
-                  </span>
-                )}
+                <span className={isBlank ? 'text-zinc-400 dark:text-zinc-600 font-light' : 'font-bold'}>
+                  {cellValue}
+                </span>
               </div>
 
               {/* Cell coordinate number */}

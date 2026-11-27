@@ -20,10 +20,10 @@ export const NodeInspector: React.FC = () => {
 
   const labelInputRef = useRef<HTMLInputElement>(null);
 
-  // Close on Escape key
+  // Close on Escape key (only when Check/Tests dropdown is not open)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !useTuringStore.getState().isInspectorOpen) {
         setSelectedNodeId(null);
       }
     };

@@ -46,7 +46,7 @@ export const CustomTransitionEdge = memo(
     let labelX = 0;
     let labelY = 0;
 
-    if (wire && !isSelfLoop) {
+    if (wire) {
       edgePath = roundedWire([
         { x: sourceX, y: sourceY },
         ...wire.points.slice(1, -1),
@@ -54,7 +54,7 @@ export const CustomTransitionEdge = memo(
       ]);
       labelX = wire.label.x;
       labelY = wire.label.y;
-    } else if (isSelfLoop) {
+    } else if (isSelfLoop && sourcePosition === targetPosition) {
       const loopHeight = 70;
       const loopWidth = 40;
       if (sourcePosition === Position.Bottom) {

@@ -14,6 +14,7 @@ import {
 
 export const DebuggerControls: React.FC = () => {
   const runtime = useTuringStore((s) => s.runtime);
+  const tapeError = useTuringStore((s) => s.tapeError);
   const isRunning = useTuringStore((s) => s.isRunning);
   const executionSpeedMs = useTuringStore((s) => s.executionSpeedMs);
 
@@ -53,6 +54,8 @@ export const DebuggerControls: React.FC = () => {
   }, [isRunning, executionSpeedMs, runtime.status, stepForward, pauseRunning]);
 
   const isHaltedOrError = runtime.status === 'halted' || runtime.status === 'error';
+  const displayStatus = tapeError ? 'error' : runtime.status;
+  const displayMessage = tapeError || runtime.statusMessage || 'Готов к исполнению';
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 text-xs">
@@ -146,23 +149,34 @@ export const DebuggerControls: React.FC = () => {
       </div>
 
       {/* Center: Status Message / Readout */}
-      <div className="flex-1 max-w-lg min-w-0 truncate px-2.5 py-1 rounded bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+      <div
+        role={tapeError ? 'alert' : undefined}
+        className={`flex-1 max-w-lg min-w-0 truncate px-2.5 py-1 rounded border flex items-center gap-2 ${
+          tapeError
+            ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+            : 'bg-zinc-50 dark:bg-zinc-800/80 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300'
+        }`}
+      >
         <span
           className={`w-2 h-2 rounded-full flex-shrink-0 ${
-            runtime.status === 'running'
+            displayStatus === 'running'
               ? 'bg-sky-500 animate-pulse'
-              : runtime.status === 'halted'
+              : displayStatus === 'halted'
               ? 'bg-emerald-500'
-              : runtime.status === 'error'
+              : displayStatus === 'error'
               ? 'bg-rose-500'
               : 'bg-zinc-400'
           }`}
         />
-        <span className="font-mono text-[10px] font-bold uppercase text-zinc-500 dark:text-zinc-400">
-          [{runtime.status}]
+        <span
+          className={`font-mono text-[10px] font-bold uppercase ${
+            tapeError ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-500 dark:text-zinc-400'
+          }`}
+        >
+          [{displayStatus}]
         </span>
         <span className="truncate font-mono text-[11px]">
-          {runtime.statusMessage || 'Готов к исполнению'}
+          {displayMessage}
         </span>
       </div>
 

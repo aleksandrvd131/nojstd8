@@ -2,7 +2,9 @@ import { SliceCreator, UiSlice } from '../types';
 
 export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   theme: 'dark',
-  activeTab: 'tuples',
+  activeTab: 'check',
+  isInspectorOpen: false,
+  tapeError: null,
   selectedNodeId: null,
   selectedEdgeId: null,
   isSessionDrawerOpen: false,
@@ -18,6 +20,8 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   toggleTheme: () =>
     set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
   setActiveTab: (tab) => set({ activeTab: tab }),
+  setInspectorOpen: (open) => set({ isInspectorOpen: open }),
+  setTapeError: (error) => set({ tapeError: error }),
   setSelectedNodeId: (id) => set({ selectedNodeId: id }),
   setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
   setSessionDrawerOpen: (open) => set({ isSessionDrawerOpen: open }),

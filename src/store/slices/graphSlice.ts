@@ -232,6 +232,18 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
 
     onConnect: (connection: Connection) => {
       if (!connection.source || !connection.target) return;
+      if (
+        connection.source === connection.target &&
+        connection.sourceHandle &&
+        connection.targetHandle &&
+        connection.sourceHandle === connection.targetHandle
+      ) {
+        set({
+          portError:
+            'Невозможно подключить узел к самому себе через одну и ту же точку. Выберите разные точки.',
+        });
+        return;
+      }
       const project = get().getActiveProject();
       const previous = project.edges.find(
         (e) => e.source === connection.source && e.target === connection.target
@@ -241,7 +253,11 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
         source: connection.source,
         target: connection.target,
         id: previous?.id ?? 'pending',
-        data: previous?.data ?? { mode: project.mode, subMode: project.subMode, rules: [] },
+        data: {
+          ...(previous?.data ?? { mode: project.mode, subMode: project.subMode, rules: [] }),
+          ...(connection.sourceHandle ? { sourcePortMode: 'manual' as const } : {}),
+          ...(connection.targetHandle ? { targetPortMode: 'manual' as const } : {}),
+        },
       };
       const check = resolvePorts(project.nodes, [
         ...project.edges.filter((e) => e !== previous),
@@ -270,12 +286,27 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
       const current = project.edges.find((e) => e.id === edgeId);
       if (!current) return;
 
+      const nextSourceHandle =
+        moved === 'target' ? pinnedSide(current, 'source') : connection.sourceHandle;
+      const nextTargetHandle =
+        moved === 'source' ? pinnedSide(current, 'target') : connection.targetHandle;
+
+      if (
+        connection.source === connection.target &&
+        nextSourceHandle &&
+        nextTargetHandle &&
+        nextSourceHandle === nextTargetHandle
+      ) {
+        set({ portError: 'Невозможно совместить вход и выход в одной точке.' });
+        return;
+      }
+
       const replacement: TuringEdge = {
         ...current,
         source: connection.source,
         target: connection.target,
-        sourceHandle: moved === 'target' ? pinnedSide(current, 'source') : connection.sourceHandle,
-        targetHandle: moved === 'source' ? pinnedSide(current, 'target') : connection.targetHandle,
+        sourceHandle: nextSourceHandle,
+        targetHandle: nextTargetHandle,
         data: {
           ...(current.data ?? { mode: project.mode, rules: [] }),
           sourcePortMode:

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProjectSession } from '../types/turing';
-import { INITIAL_PROJECTS } from './demoProjects';
+import { DEMO_PROJECT_1, DEMO_PROJECT_2, DEMO_PROJECT_3, INITIAL_PROJECTS } from './demoProjects';
 import { initRuntimeState } from '../engine/simulator';
 import { createDebouncedStorage } from './storage';
 import {
@@ -15,6 +15,8 @@ function resetStore() {
     activeProjectId: freshProjects[0].id,
     runtime: initRuntimeState(freshProjects[0]),
     isRunning: false,
+    isInspectorOpen: false,
+    activeTab: 'check',
     selectedNodeId: null,
     selectedEdgeId: null,
     editorUndoStack: [],
@@ -32,16 +34,16 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
     const store = useTuringStore.getState();
     const initialCount = store.getActiveProject().nodes.length;
 
-    store.addStateNode('normal', 'q_new');
+    store.addOperationNode('SHIFT_R', 'r');
     expect(useTuringStore.getState().getActiveProject().nodes).toHaveLength(initialCount + 1);
     expect(useTuringStore.getState().editorUndoStack).toHaveLength(1);
 
-    store.addFiveTupleRule({
-      fromState: 'q0',
+    store.upsertOperationalEdgeRule({
+      sourceNodeId: 'vtm_start',
+      targetNodeId: 'vtm_finish',
       readSymbol: '0',
-      writeSymbol: '1',
-      move: 'R',
-      toState: 'q_halt',
+      isWildcard: false,
+      isComplement: false,
     });
     expect(useTuringStore.getState().editorUndoStack).toHaveLength(2);
 
@@ -62,20 +64,21 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
 
   it('groups multi-frame node drag into a single undo step', () => {
     const store = useTuringStore.getState();
+    const targetId = store.getActiveProject().nodes[0].id;
     const origPos = { ...store.getActiveProject().nodes[0].position };
 
     store.onNodesChange([
-      { id: 'q0', type: 'position', position: { x: origPos.x + 20, y: origPos.y + 10 }, dragging: true },
+      { id: targetId, type: 'position', position: { x: origPos.x + 20, y: origPos.y + 10 }, dragging: true },
     ]);
     store.onNodesChange([
-      { id: 'q0', type: 'position', position: { x: origPos.x + 60, y: origPos.y + 30 }, dragging: true },
+      { id: targetId, type: 'position', position: { x: origPos.x + 60, y: origPos.y + 30 }, dragging: true },
     ]);
     // Still dragging -> undo stack should not grow yet
     expect(useTuringStore.getState().editorUndoStack).toHaveLength(0);
 
     // Drag finishes
     store.onNodesChange([
-      { id: 'q0', type: 'position', position: { x: origPos.x + 100, y: origPos.y + 50 }, dragging: false },
+      { id: targetId, type: 'position', position: { x: origPos.x + 100, y: origPos.y + 50 }, dragging: false },
     ]);
     expect(useTuringStore.getState().editorUndoStack).toHaveLength(1);
 
@@ -85,7 +88,7 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
     expect(restoredPos.y).toBe(origPos.y);
   });
 
-  it('deletes a selected group and connected rules in one undo step', () => {
+  it('deletes a selected group and connected edges in one undo step', () => {
     const project = useTuringStore.getState().getActiveProject();
     const ids = project.nodes.slice(0, 2).map((node) => node.id);
     useTuringStore.getState().onNodesChange(ids.map((id) => ({ id, type: 'select', selected: true })));
@@ -94,7 +97,6 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
     const result = useTuringStore.getState().getActiveProject();
     expect(result.nodes.some((node) => ids.includes(node.id))).toBe(false);
     expect(result.edges.some((edge) => ids.includes(edge.source) || ids.includes(edge.target))).toBe(false);
-    expect(result.rules5.some((rule) => ids.includes(rule.fromState) || ids.includes(rule.toState))).toBe(false);
     expect(useTuringStore.getState().editorUndoStack).toHaveLength(1);
     useTuringStore.getState().undoEditor();
     expect(useTuringStore.getState().getActiveProject().edges).toHaveLength(project.edges.length);
@@ -118,7 +120,7 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
   it('handles Ctrl+Z and Ctrl+Shift+Z keyboard shortcuts for editor history', () => {
     const store = useTuringStore.getState();
     const initialCount = store.getActiveProject().nodes.length;
-    store.addStateNode('normal');
+    store.addOperationNode('SHIFT_R', 'r');
     expect(useTuringStore.getState().getActiveProject().nodes).toHaveLength(initialCount + 1);
 
     const undoEvent = new KeyboardEvent('keydown', { code: 'KeyZ', ctrlKey: true });
@@ -131,12 +133,16 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
   });
 
   it('clears editor undo/redo history when switching projects', () => {
-    useTuringStore.getState().addStateNode('normal');
+    useTuringStore.getState().createProject(undefined, undefined, 'Вторая VTM');
+    const secondId = useTuringStore.getState().activeProjectId;
+    useTuringStore.getState().addOperationNode('SHIFT_L', 'l');
     expect(useTuringStore.getState().editorUndoStack).toHaveLength(1);
 
-    useTuringStore.getState().switchProject(INITIAL_PROJECTS[1].id);
+    useTuringStore.getState().switchProject(DEMO_PROJECT_3.id);
+    expect(useTuringStore.getState().activeProjectId).toBe(DEMO_PROJECT_3.id);
     expect(useTuringStore.getState().editorUndoStack).toHaveLength(0);
     expect(useTuringStore.getState().editorRedoStack).toHaveLength(0);
+    expect(secondId).not.toBe(DEMO_PROJECT_3.id);
   });
 
   it('coalesces rapid writes in createDebouncedStorage and supports flush()', () => {
@@ -176,33 +182,34 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
     vi.useRealTimers();
   });
 
-  it('persists edge labelOffset across rule table updates', () => {
+  it('persists edge labelOffset across rule updates', () => {
     const store = useTuringStore.getState();
-    const edge = store.getActiveProject().edges.find((e) => e.source === 'q0' && e.target === 'q_halt')!;
+    const edge = store.getActiveProject().edges.find((e) => e.id === 'e_vtm_1')!;
     store.updateEdgeLabelOffset(edge.id, { x: 42, y: -18 });
 
-    store.addFiveTupleRule({
-      fromState: 'q0',
+    store.upsertOperationalEdgeRule({
+      edgeId: edge.id,
+      sourceNodeId: edge.source,
+      targetNodeId: edge.target,
       readSymbol: '0',
-      writeSymbol: '1',
-      move: 'R',
-      toState: 'q_halt',
+      isWildcard: false,
+      isComplement: false,
     });
 
     const updatedEdge = useTuringStore
       .getState()
       .getActiveProject()
-      .edges.find((e) => e.source === 'q0' && e.target === 'q_halt');
+      .edges.find((e) => e.id === 'e_vtm_1');
     expect(updatedEdge?.data?.labelOffset).toEqual({ x: 42, y: -18 });
   });
 
   it('deletes the selected node on Delete key and supports Undo, while respecting open modals', () => {
     const store = useTuringStore.getState();
-    store.addStateNode('normal', 'q_temp');
+    store.addOperationNode('SHIFT_R', 'r_temp');
     const targetNode = useTuringStore
       .getState()
       .getActiveProject()
-      .nodes.find((n) => n.data.label === 'q_temp');
+      .nodes.find((n) => n.data.label === 'r_temp');
     expect(targetNode).toBeDefined();
 
     store.setSelectedNodeId(targetNode!.id);
@@ -243,5 +250,21 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
         .getActiveProject()
         .nodes.some((n) => n.id === targetNode!.id)
     ).toBe(true);
+  });
+
+  it('closes the Check/Tests dropdown on Escape without resetting runtime execution', () => {
+    const store = useTuringStore.getState();
+    store.stepForward();
+    expect(useTuringStore.getState().runtime.stepCount).toBe(1);
+
+    useTuringStore.setState({ isInspectorOpen: true });
+    const esc = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', cancelable: true });
+    expect(handleDebuggerKeyboardShortcut(esc)).toBe(true);
+    expect(useTuringStore.getState().isInspectorOpen).toBe(false);
+    expect(useTuringStore.getState().runtime.stepCount).toBe(1);
+
+    // Keep legacy fixture references valid
+    expect(DEMO_PROJECT_1.mode).toBe('5-tuple');
+    expect(DEMO_PROJECT_2.mode).toBe('4-tuple');
   });
 });
