@@ -16,6 +16,8 @@ import {
 import { INITIAL_PROJECTS } from '../demoProjects';
 import { RuntimeSlice, SliceCreator } from '../types';
 
+let fastRunGeneration = 0;
+
 export function getRuntimeStats(
   project: ProjectSession,
   runtime: RuntimeState
@@ -73,6 +75,7 @@ export function getRuntimeStats(
 
 export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
   runtime: initRuntimeState(INITIAL_PROJECTS[0]),
+  isFastRunning: false,
 
   setTapeCell: (pos: number, sym: string) => {
     set((state) => ({
@@ -141,6 +144,7 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
       ...prev,
       initialTape: currentTape,
       initialHeadPosition: currentHead,
+      initialHeadPositionExplicit: true,
     }));
   },
 
@@ -149,6 +153,7 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
     set({
       runtime: initRuntimeState(active),
       isRunning: false,
+      isFastRunning: false,
       tapeError: null,
     });
   },
@@ -158,6 +163,7 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
     set({
       runtime: initRuntimeState(active),
       isRunning: false,
+      isFastRunning: false,
       tapeError: null,
     });
   },
@@ -170,20 +176,48 @@ export const createRuntimeSlice: SliceCreator<RuntimeSlice> = (set, get) => ({
 
   stepBack: () => {
     const prevRuntime = stepBackMachine(get().runtime);
-    set({ runtime: prevRuntime, isRunning: false, tapeError: null });
+    set({ runtime: prevRuntime, isRunning: false, isFastRunning: false, tapeError: null });
+  },
+
+  fastRun: () => {
+    let current = get().runtime;
+    if (get().isFastRunning || current.status === 'halted' || current.status === 'error') return;
+    const project = get().getActiveProject();
+    const generation = ++fastRunGeneration;
+    const maxSteps = 10000;
+    let steps = 0;
+    set({ isRunning: false, isFastRunning: true, tapeError: null });
+    const runBatch = () => {
+      if (generation !== fastRunGeneration || !get().isFastRunning) return;
+      if (get().runtime !== current || get().getActiveProject() !== project) {
+        set({ isFastRunning: false });
+        return;
+      }
+      for (let i = 0; i < 100 && steps < maxSteps; i++, steps++) {
+        current = stepMachine(project, current);
+        if (current.status === 'halted' || current.status === 'error') break;
+      }
+      const finished = current.status === 'halted' || current.status === 'error';
+      if (!finished && steps >= maxSteps) {
+        current = { ...current, status: 'paused', statusMessage: `Быстрый запуск приостановлен: достигнут лимит ${maxSteps} шагов.` };
+      }
+      set({ runtime: current, isFastRunning: !finished && steps < maxSteps });
+      if (get().isFastRunning) setTimeout(runBatch, 0);
+    };
+    runBatch();
   },
 
   startRunning: () => {
-    set({ isRunning: true, tapeError: null });
+    set({ isRunning: true, isFastRunning: false, tapeError: null });
   },
 
   pauseRunning: () => {
-    set({ isRunning: false });
+    set({ isRunning: false, isFastRunning: false });
   },
 
   toggleRunning: () => {
-    const { isRunning, startRunning, pauseRunning } = get();
-    if (isRunning) pauseRunning();
+    const { isRunning, isFastRunning, startRunning, pauseRunning } = get();
+    if (isRunning || isFastRunning) pauseRunning();
     else startRunning();
   },
 

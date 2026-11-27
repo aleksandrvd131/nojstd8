@@ -30,6 +30,111 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
     resetStore();
   });
 
+  it('writes 1 to the current tape cell without requiring tape focus', () => {
+    const store = useTuringStore.getState();
+    store.setHeadPosition(4);
+    store.setTapeCell(4, '0');
+    const key = new KeyboardEvent('keydown', { key: '1', code: 'Digit1', cancelable: true });
+
+    expect(handleDebuggerKeyboardShortcut(key)).toBe(true);
+    expect(key.defaultPrevented).toBe(true);
+    expect(useTuringStore.getState().runtime.tape[4]).toBe('1');
+  });
+
+  it('does not write to the tape when typing in an input', () => {
+    const input = document.createElement('input');
+    const key = new KeyboardEvent('keydown', { key: '1', code: 'Digit1', bubbles: true });
+    input.dispatchEvent(key);
+
+    expect(handleDebuggerKeyboardShortcut(key)).toBe(false);
+    expect(useTuringStore.getState().runtime.tape).toEqual(initRuntimeState(useTuringStore.getState().getActiveProject()).tape);
+  });
+
+  it('copies selected nodes with only their internal edges and supports undo', () => {
+    const project = useTuringStore.getState().getActiveProject();
+    const edge = project.edges.find((e) => e.source !== e.target)!;
+    const ids = [edge.source, edge.target];
+    useTuringStore.getState().onNodesChange(ids.map((id) => ({ id, type: 'select', selected: true })));
+    expect(handleDebuggerKeyboardShortcut(new KeyboardEvent('keydown', { code: 'KeyC', ctrlKey: true }))).toBe(true);
+    expect(handleDebuggerKeyboardShortcut(new KeyboardEvent('keydown', { code: 'KeyV', ctrlKey: true }))).toBe(true);
+    const result = useTuringStore.getState().getActiveProject();
+    const pasted = result.nodes.filter((n) => n.selected);
+    expect(pasted).toHaveLength(2);
+    const pastedIds = new Set(pasted.map((n) => n.id));
+    const addedEdges = result.edges.filter((e) => !project.edges.some((old) => old.id === e.id));
+    expect(addedEdges.length).toBeGreaterThan(0);
+    expect(addedEdges.every((e) => pastedIds.has(e.source) && pastedIds.has(e.target))).toBe(true);
+    const moved = pasted[0];
+    useTuringStore.getState().onNodesChange([{ id: moved.id, type: 'position', position: moved.position, dragging: true }]);
+    useTuringStore.getState().onNodesChange([{ id: moved.id, type: 'position', position: { x: moved.position.x + 50, y: moved.position.y }, dragging: false }]);
+    useTuringStore.getState().undoEditor();
+    expect(useTuringStore.getState().getActiveProject().nodes).toHaveLength(project.nodes.length);
+  });
+
+  it('does not add or edit an operational condition to a duplicate', () => {
+    const store = useTuringStore.getState();
+    const edge = store.getActiveProject().edges.find((e) => (e.data?.rules.length ?? 0) > 0)!;
+    const rule = edge.data!.rules[0];
+    const before = edge.data!.rules.length;
+    store.upsertOperationalEdgeRule({
+      edgeId: edge.id, sourceNodeId: edge.source, targetNodeId: edge.target,
+      readSymbol: rule.readSymbol, isWildcard: !!rule.isWildcard, isComplement: !!rule.isComplement,
+    });
+    expect(useTuringStore.getState().getActiveProject().edges.find((e) => e.id === edge.id)!.data!.rules).toHaveLength(before);
+  });
+
+  it('starts custom input after the last token unless a head position is specified', () => {
+    const project = useTuringStore.getState().getActiveProject();
+    expect(initRuntimeState(project, '1010').headPosition).toBe(4);
+    expect(initRuntimeState(project, '1010', 0).headPosition).toBe(0);
+  });
+
+  it('starts legacy tapes after the word but preserves an explicitly saved zero position', () => {
+    const project = { ...useTuringStore.getState().getActiveProject(), initialTape: { 0: '1', 1: '0', 2: '1', 3: '1' }, initialHeadPosition: 0 };
+    expect(initRuntimeState(project).headPosition).toBe(4);
+    expect(initRuntimeState({ ...project, initialHeadPositionExplicit: true }).headPosition).toBe(0);
+  });
+
+  it('resets on Escape while the tape is focused, but not under a modal', () => {
+    const strip = document.createElement('div');
+    strip.dataset.tapeStrip = '';
+    const key = () => {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true });
+      strip.dispatchEvent(event);
+      return event;
+    };
+    useTuringStore.getState().setHeadPosition(42);
+    expect(handleDebuggerKeyboardShortcut(key())).toBe(true);
+    expect(useTuringStore.getState().runtime.headPosition).not.toBe(42);
+    useTuringStore.getState().setHeadPosition(42);
+    useTuringStore.setState({ isExportModalOpen: true });
+    expect(handleDebuggerKeyboardShortcut(key())).toBe(false);
+    expect(useTuringStore.getState().runtime.headPosition).toBe(42);
+    useTuringStore.setState({ isExportModalOpen: false });
+  });
+
+  it('auto-layout restores automatic edge ports and undoes layout and ports together', () => {
+    const store = useTuringStore.getState();
+    store.updateActiveProject((project) => ({
+      ...project,
+      edges: project.edges.map((edge, i) => i === 0 ? {
+        ...edge, sourceHandle: 'right', targetHandle: 'left',
+        data: { ...edge.data!, sourcePortMode: 'manual', targetPortMode: 'manual' },
+      } : edge),
+    }));
+    const before = useTuringStore.getState().getActiveProject();
+    store.applyAutoLayout();
+    const after = useTuringStore.getState().getActiveProject();
+    expect(after.edges[0].data?.sourcePortMode).toBe('auto');
+    expect(after.edges[0].data?.targetPortMode).toBe('auto');
+    expect(after.edges[0].data?.rules).toEqual(before.edges[0].data?.rules);
+    expect(after.edges[0].source).toBe(before.edges[0].source);
+    expect(after.edges[0].target).toBe(before.edges[0].target);
+    store.undoEditor();
+    expect(useTuringStore.getState().getActiveProject().edges[0].data?.sourcePortMode).toBe('manual');
+    expect(useTuringStore.getState().getActiveProject().nodes.map((node) => node.position)).toEqual(before.nodes.map((node) => node.position));
+  });
+
   it('undoes and redoes node addition, deletion, and rule mutations', () => {
     const store = useTuringStore.getState();
     const initialCount = store.getActiveProject().nodes.length;

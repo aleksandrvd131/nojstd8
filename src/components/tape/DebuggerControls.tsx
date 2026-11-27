@@ -10,17 +10,20 @@ import {
   Layers,
   Clock,
   HardDrive,
+  Zap,
 } from 'lucide-react';
 
 export const DebuggerControls: React.FC = () => {
   const runtime = useTuringStore((s) => s.runtime);
   const tapeError = useTuringStore((s) => s.tapeError);
   const isRunning = useTuringStore((s) => s.isRunning);
+  const isFastRunning = useTuringStore((s) => s.isFastRunning);
   const executionSpeedMs = useTuringStore((s) => s.executionSpeedMs);
 
   const resetExecution = useTuringStore((s) => s.resetExecution);
   const stepForward = useTuringStore((s) => s.stepForward);
   const stepBack = useTuringStore((s) => s.stepBack);
+  const fastRun = useTuringStore((s) => s.fastRun);
   const startRunning = useTuringStore((s) => s.startRunning);
   const pauseRunning = useTuringStore((s) => s.pauseRunning);
   const setExecutionSpeedMs = useTuringStore((s) => s.setExecutionSpeedMs);
@@ -56,6 +59,8 @@ export const DebuggerControls: React.FC = () => {
   const isHaltedOrError = runtime.status === 'halted' || runtime.status === 'error';
   const displayStatus = tapeError ? 'error' : runtime.status;
   const displayMessage = tapeError || runtime.statusMessage || 'Готов к исполнению';
+  const isProblem = Boolean(tapeError) || runtime.status === 'error' ||
+    (runtime.status === 'halted' && runtime.statusMessage?.includes('нет перехода'));
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 text-xs">
@@ -89,7 +94,7 @@ export const DebuggerControls: React.FC = () => {
         </button>
 
         {/* Run / Pause Toggle */}
-        {isRunning ? (
+        {isRunning || isFastRunning ? (
           <button
             type="button"
             onClick={pauseRunning}
@@ -129,6 +134,17 @@ export const DebuggerControls: React.FC = () => {
           </span>
         </button>
 
+        <button
+          type="button"
+          onClick={fastRun}
+          disabled={isHaltedOrError || isFastRunning}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-sky-50 dark:bg-sky-950 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          title="Выполнить до остановки или ошибки (не более 10000 шагов)"
+        >
+          <Zap className="w-3.5 h-3.5" />
+          <span>Быстрый запуск</span>
+        </button>
+
         {/* Speed Slider */}
         <div className="flex items-center gap-2 ml-2 px-2.5 py-1 rounded bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700">
           <Gauge className="w-3 h-3 text-zinc-400" />
@@ -150,27 +166,27 @@ export const DebuggerControls: React.FC = () => {
 
       {/* Center: Status Message / Readout */}
       <div
-        role={tapeError ? 'alert' : undefined}
+        role={isProblem ? 'alert' : undefined}
         className={`flex-1 max-w-lg min-w-0 truncate px-2.5 py-1 rounded border flex items-center gap-2 ${
-          tapeError
+          isProblem
             ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
             : 'bg-zinc-50 dark:bg-zinc-800/80 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300'
         }`}
       >
         <span
           className={`w-2 h-2 rounded-full flex-shrink-0 ${
-            displayStatus === 'running'
+            isProblem
+              ? 'bg-rose-500'
+              : displayStatus === 'running'
               ? 'bg-sky-500 animate-pulse'
               : displayStatus === 'halted'
               ? 'bg-emerald-500'
-              : displayStatus === 'error'
-              ? 'bg-rose-500'
               : 'bg-zinc-400'
           }`}
         />
         <span
           className={`font-mono text-[10px] font-bold uppercase ${
-            tapeError ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-500 dark:text-zinc-400'
+            isProblem ? 'text-rose-600 dark:text-rose-400' : 'text-zinc-500 dark:text-zinc-400'
           }`}
         >
           [{displayStatus}]

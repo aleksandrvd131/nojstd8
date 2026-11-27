@@ -16,6 +16,8 @@ import { SessionManagerDrawer } from './sidebar/SessionManagerDrawer';
 import { VTMCodeInput } from './inspector/VTMCodeInput';
 import { HeaderNavbar } from './navbar/HeaderNavbar';
 import { App } from '../App';
+import { ReactFlowProvider } from '@xyflow/react';
+import { OperationNode } from './canvas/OperationNode';
 
 function resetStore(projectId = INITIAL_PROJECTS[0].id) {
   const freshProjects: ProjectSession[] = JSON.parse(JSON.stringify(INITIAL_PROJECTS));
@@ -206,6 +208,38 @@ describe('React UI Components', () => {
     expect(screen.getByRole('button', { name: /Тесты/i })).toBeInTheDocument();
   });
 
+  it('opens and closes the project credits from the brand', () => {
+    render(<HeaderNavbar />);
+    const brand = screen.getByRole('button', { name: 'nojstd' });
+    fireEvent.click(brand);
+    expect(screen.getByText(/Александр Ведышев и Иван Харьков/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Репозиторий на GitHub/ })).toHaveAttribute('href', 'https://github.com/aleksandrvd131/nojstd8');
+    fireEvent.keyDown(brand, { key: 'Escape' });
+    expect(screen.queryByRole('region', { name: 'О проекте nojstd' })).not.toBeInTheDocument();
+  });
+
+  it('shows an unsuccessful halt in red and places fast run after step', () => {
+    useTuringStore.setState((state) => ({
+      runtime: { ...state.runtime, status: 'halted', statusMessage: "Останов: из узла 'r' нет перехода для символа '_'." },
+    }));
+    render(<DebuggerControls />);
+    expect(screen.getByRole('alert')).toHaveClass('text-rose-700');
+    const step = screen.getByRole('button', { name: /Шаг Space/ });
+    const fast = screen.getByRole('button', { name: /Быстрый запуск/ });
+    expect(step.compareDocumentPosition(fast) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it.each(['hl3', 'half-life 3'])('drops a crowbar for %s without bypassing tape validation', (word) => {
+    render(<InfiniteTapeDock />);
+    const input = screen.getByPlaceholderText(/Входное слово на ленту/i);
+    fireEvent.change(input, { target: { value: word } });
+    fireEvent.submit(input.closest('form')!);
+    expect(screen.getByTestId('falling-crowbar')).toBeInTheDocument();
+    expect(useTuringStore.getState().tapeError).toBeTruthy();
+    fireEvent.animationEnd(screen.getByTestId('falling-crowbar'));
+    expect(screen.queryByTestId('falling-crowbar')).not.toBeInTheDocument();
+  });
+
   it('InfiniteTapeDock sets head after word, supports keyboard-only cell editing, routes errors to DebuggerControls, and hides Reset Tape', () => {
     render(
       <>
@@ -250,6 +284,54 @@ describe('React UI Components', () => {
     // Clear tape empties cells
     fireEvent.click(screen.getByLabelText('Очистить ленту'));
     expect(Object.keys(useTuringStore.getState().runtime.tape)).toHaveLength(0);
+  });
+
+  it('focuses the tape on pointer entry without stealing focus from text input', () => {
+    render(<InfiniteTapeDock />);
+    const strip = screen.getByLabelText(/Лента Тьюринга/i);
+    const input = screen.getByPlaceholderText(/Входное слово на ленту/i);
+    fireEvent.mouseEnter(strip);
+    expect(strip).toHaveFocus();
+    const head = useTuringStore.getState().runtime.headPosition;
+    fireEvent.keyDown(strip, { key: 'ArrowLeft' });
+    expect(useTuringStore.getState().runtime.headPosition).toBe(head - 1);
+    input.focus();
+    fireEvent.mouseEnter(strip);
+    expect(input).toHaveFocus();
+  });
+
+  it('fast-runs until the first execution error and shows the failing node', () => {
+    act(() => {
+      useTuringStore.getState().resetExecution();
+      const id = useTuringStore.getState().runtime.currentNodeId;
+      useTuringStore.getState().updateActiveProject((project) => ({
+        ...project,
+        nodes: project.nodes.map((node) => node.id === id
+          ? { ...node, data: { ...node.data, opType: 'COMPLEX_MACHINE', subMachineId: 'missing' } }
+          : node),
+      }));
+    });
+    const startId = useTuringStore.getState().runtime.currentNodeId;
+    render(<DebuggerControls />);
+    fireEvent.click(screen.getByRole('button', { name: /Быстрый запуск/i }));
+    expect(useTuringStore.getState().runtime.status).toBe('error');
+    expect(useTuringStore.getState().runtime.currentNodeId).toBe(startId);
+    expect(useTuringStore.getState().isFastRunning).toBe(false);
+  });
+
+  it('shows imported function code and project description on its node', () => {
+    const source = { ...INITIAL_PROJECTS[0], id: 'source-for-s', name: 'Source', description: 'Описание исходной машины' };
+    useTuringStore.setState((state) => ({ projects: [...state.projects, source] }));
+    expect(useTuringStore.getState().addProjectFunction(source.id, 'S')).toBe(true);
+    const node = useTuringStore.getState().getActiveProject().nodes.find((n) => n.data.subMachineName === source.name)!;
+    render(
+      <ReactFlowProvider>
+        <OperationNode {...({ id: node.id, data: node.data, selected: false } as any)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getAllByText('S').length).toBeGreaterThan(0);
+    expect(screen.getByText('Описание исходной машины')).toBeInTheDocument();
+    expect(screen.queryByText('K')).not.toBeInTheDocument();
   });
 
   it('NodeInspector updates selected node label', () => {

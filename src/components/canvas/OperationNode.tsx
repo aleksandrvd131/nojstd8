@@ -18,6 +18,10 @@ import clsx from 'clsx';
 export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as unknown as OperationNodeData;
   const runtimeCurrentNodeId = useTuringStore((s) => s.runtime.currentNodeId);
+  const subMachine = useTuringStore((s) =>
+    s.projects.find((project) => project.id === s.activeProjectId)
+      ?.subMachines.find((machine) => machine.id === nodeData.subMachineId)
+  );
   const isCurrent = runtimeCurrentNodeId === id;
 
   const isFinish = nodeData.opType === 'FINISH';
@@ -27,42 +31,42 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
       case 'START':
         return {
           icon: <Play className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 fill-current" />,
-          label: 'START',
+          label: 'Начало',
           code: '.',
           color: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
         };
       case 'FINISH':
         return {
           icon: <Square className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 fill-current" />,
-          label: 'FINISH',
+          label: 'Конец',
           code: 'HALT',
           color: 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400',
         };
       case 'SHIFT_L':
         return {
           icon: <ArrowLeft className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />,
-          label: 'Сдвиг L',
+          label: 'Сдвиг влево',
           code: 'l',
           color: 'border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400',
         };
       case 'SHIFT_R':
         return {
           icon: <ArrowRight className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />,
-          label: 'Сдвиг R',
+          label: 'Сдвиг вправо',
           code: 'r',
           color: 'border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400',
         };
       case 'SEARCH_L':
         return {
           icon: <ChevronsLeft className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />,
-          label: 'Поиск L',
+          label: 'Влево на слово',
           code: 'L',
           color: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
         };
       case 'SEARCH_R':
         return {
           icon: <ChevronsRight className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />,
-          label: 'Поиск R',
+          label: 'Вправо на слово',
           code: 'R',
           color: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
         };
@@ -76,8 +80,8 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
       case 'COMPLEX_MACHINE':
         return {
           icon: <Boxes className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />,
-          label: nodeData.subMachineName || 'Подмашина',
-          code: 'K',
+          label: subMachine?.description || nodeData.description || nodeData.subMachineName || 'Подмашина',
+          code: subMachine?.code || '?',
           color: 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
         };
       default:
@@ -96,7 +100,7 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
     <div
       data-export-current-node={isCurrent ? '' : undefined}
       className={clsx(
-        'relative group min-w-[120px] rounded-md px-3 py-2 select-none transition-colors border cursor-grab active:cursor-grabbing',
+        'relative group w-[190px] rounded-md px-2.5 py-1.5 select-none transition-colors border cursor-grab active:cursor-grabbing',
         isCurrent
           ? 'bg-amber-500/10 dark:bg-amber-400/10 border-amber-500 dark:border-amber-400 shadow-sm ring-1 ring-amber-500/40'
           : selected
@@ -123,7 +127,7 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
             </span>
           </div>
 
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+          <div title={badge.label} className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
             {badge.label}
           </div>
         </div>

@@ -29,6 +29,16 @@ export function handleDebuggerKeyboardShortcut(
     }
   }
 
+  // Tape editing owns its own arrow and delete keys, but Escape remains the
+  // global reset shortcut even while the tape has keyboard focus.
+  if ((e.code === 'Escape' || e.key === 'Escape') &&
+      target?.closest?.('[data-tape-strip]') && !hasBlockingOverlay &&
+      store.keyboardShortcutsEnabled) {
+    e.preventDefault();
+    store.resetExecution();
+    return true;
+  }
+
   if (
     target &&
     (target.tagName === 'INPUT' ||
@@ -38,6 +48,18 @@ export function handleDebuggerKeyboardShortcut(
       target.closest?.('[data-tape-strip]'))
   ) {
     return false;
+  }
+
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !hasBlockingOverlay &&
+      !target?.closest?.('[data-inspector-dropdown]')) {
+    if (e.code === 'KeyC' && store.copySelectedNodes()) {
+      e.preventDefault();
+      return true;
+    }
+    if (e.code === 'KeyV' && store.pasteSelectedNodes()) {
+      e.preventDefault();
+      return true;
+    }
   }
 
   // Editor Undo / Redo: Ctrl+Z / Cmd+Z, Ctrl+Shift+Z / Cmd+Shift+Z, Ctrl+Y
@@ -147,7 +169,7 @@ export function handleDebuggerKeyboardShortcut(
   }
 
   // Escape: Reset execution
-  if (e.code === 'Escape') {
+  if ((e.code === 'Escape' || e.key === 'Escape') && !hasBlockingOverlay) {
     e.preventDefault();
     store.resetExecution();
     return true;

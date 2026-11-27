@@ -108,6 +108,8 @@ export interface GraphSlice {
   clearEditorHistory: () => void;
   undoEditor: () => void;
   redoEditor: () => void;
+  copySelectedNodes: () => boolean;
+  pasteSelectedNodes: () => boolean;
 
   onNodesChange: (changes: NodeChange<TuringNode>[]) => void;
   onEdgesChange: (changes: EdgeChange<TuringEdge>[]) => void;
@@ -168,6 +170,7 @@ export interface RulesSlice {
 
 export interface RuntimeSlice {
   runtime: RuntimeState;
+  isFastRunning: boolean;
 
   setTapeCell: (pos: number, sym: string) => void;
   setTapeString: (word: string, startPos?: number) => void;
@@ -179,6 +182,7 @@ export interface RuntimeSlice {
   resetExecution: () => void;
   stepForward: () => void;
   stepBack: () => void;
+  fastRun: () => void;
   startRunning: () => void;
   pauseRunning: () => void;
   toggleRunning: () => void;

@@ -618,6 +618,17 @@ export const createRulesSlice: SliceCreator<RulesSlice> = (set, get) => ({
     isWildcard,
     isComplement,
   }) => {
+    const existing = get().getActiveProject().edges.find(
+      (e) => (providedEdgeId && e.id === providedEdgeId) ||
+        (e.source === sourceNodeId && e.target === targetNodeId)
+    );
+    const duplicate = existing?.data?.rules.some((r) => {
+      const wildcard = r.isWildcard === true ||
+        (r.isWildcard === undefined && !r.isComplement && r.readSymbol === '*');
+      return r.id !== ruleId && wildcard === !!isWildcard &&
+        (wildcard || (r.readSymbol === readSymbol && !!r.isComplement === !!isComplement));
+    });
+    if (duplicate) return;
     get().pushEditorSnapshot();
     get().updateActiveProject((prev) => {
       const matchedEdge = prev.edges.find(

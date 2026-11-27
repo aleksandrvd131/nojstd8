@@ -25,6 +25,7 @@ export const InfiniteTapeDock: React.FC = () => {
 
   const [inputWord, setInputWord] = useState('');
   const [rangeOffset, setRangeOffset] = useState(0);
+  const [crowbar, setCrowbar] = useState(0);
   const tapeStripRef = useRef<HTMLDivElement>(null);
 
   const head = runtime.headPosition;
@@ -43,6 +44,9 @@ export const InfiniteTapeDock: React.FC = () => {
 
   const handleApplyInputWord = (e: React.FormEvent) => {
     e.preventDefault();
+    if (/^(?:hl\s*3|half[\s-]*life\s*3)$/i.test(inputWord.trim())) {
+      setCrowbar((count) => count + 1);
+    }
     if (inputWord.length > 0) {
       const tokens = tokenizeTapeInput(inputWord, project.alphabet);
       const invalid = tokens.find((symbol) => !allSymbols.includes(symbol));
@@ -88,6 +92,22 @@ export const InfiniteTapeDock: React.FC = () => {
 
   return (
     <div className="flex flex-col w-full bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 select-none text-xs">
+      {crowbar > 0 && (
+        <div key={crowbar} className="crowbar-easter-egg" aria-hidden="true" data-testid="falling-crowbar"
+          onAnimationEnd={() => setCrowbar(0)}>
+          <svg width="240" height="120" viewBox="0 0 240 120" fill="none">
+            {/* Curved claw, long steel shaft, and flattened chisel tip. */}
+            <path d="M20 41 C9 31 7 18 15 10 C23 2 35 4 48 10 L184 79 Q194 84 205 85 L229 88 L234 91 L229 103 Q228 106 223 106 L199 101 Q188 100 178 95 L43 25 C31 19 25 20 22 24 C19 28 21 34 25 38 L30 50 L28 57 L22 50 Z"
+              fill="#3f464b" stroke="#202529" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M20 41 L25 38 L30 50 L28 57 L22 50 Z" fill="#a6aaad" stroke="#73797c" strokeWidth="1" />
+            <path d="M203 86 L229 88 L234 91 L229 103 Q228 106 223 106 L199 101 Z"
+              fill="#a8abad" stroke="#73797c" strokeWidth="1.5" />
+            <path d="M15 18 C20 9 30 9 43 15 L181 85 Q190 90 201 91"
+              stroke="#798187" strokeWidth="3" strokeLinecap="round" opacity=".8" />
+            <path d="M48 24 L177 91" stroke="#252b2f" strokeWidth="2" opacity=".7" />
+          </svg>
+        </div>
+      )}
       {/* Tape Sub-toolbar */}
       <div className="px-3 py-1.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 bg-zinc-50/60 dark:bg-zinc-950/60">
         {/* Quick word input */}
@@ -179,6 +199,11 @@ export const InfiniteTapeDock: React.FC = () => {
         ref={tapeStripRef}
         data-tape-strip
         tabIndex={0}
+        onMouseEnter={() => {
+          const active = document.activeElement as HTMLElement | null;
+          if (active && (active.matches('input, textarea, select') || active.isContentEditable)) return;
+          tapeStripRef.current?.focus({ preventScroll: true });
+        }}
         onKeyDown={handleTapeKeyDown}
         onWheel={(e) => {
           const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;

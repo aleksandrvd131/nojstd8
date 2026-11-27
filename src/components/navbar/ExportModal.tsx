@@ -114,7 +114,7 @@ export const ExportModal: React.FC = () => {
                 Экспорт проекта и отчётов
               </h3>
               <p className="text-[11px] text-zinc-500">
-                LaTeX для лабораторных, JSON, PlantUML, Markdown и векторный/растровый снимок
+                JSON — формат для импорта проекта. Остальные форматы предназначены для отчётов и изображений.
               </p>
             </div>
           </div>
@@ -135,11 +135,11 @@ export const ExportModal: React.FC = () => {
             className={`py-2.5 border-b-2 flex items-center gap-1.5 transition-colors ${
               activeTab === 'json'
                 ? 'border-sky-500 text-sky-600 dark:text-sky-400 font-semibold'
-                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                : 'border-transparent text-sky-600 dark:text-sky-400 font-semibold hover:text-sky-800'
             }`}
           >
             <FileCode className="w-3.5 h-3.5" />
-            JSON
+            JSON <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] text-sky-700 dark:bg-sky-900 dark:text-sky-200">для импорта</span>
           </button>
           <button
             type="button"

@@ -290,7 +290,7 @@ describe('Simulator & Demo Projects', () => {
   });
 
   it('executes COMPLEX_MACHINE submachine and returns to caller finish node', () => {
-    let state = initRuntimeState(subMachineProject, '00');
+    let state = initRuntimeState(subMachineProject, '00', 0);
     let steps = 0;
     while (state.status !== 'halted' && state.status !== 'error' && steps < 30) {
       state = stepMachine(subMachineProject, state);
@@ -302,7 +302,7 @@ describe('Simulator & Demo Projects', () => {
   });
 
   it('runs SEARCH_R across non-blank cells and records visited positions', () => {
-    let state = initRuntimeState(searchProject, '111_');
+    let state = initRuntimeState(searchProject, '111_', 0);
     let steps = 0;
     while (state.status !== 'halted' && state.status !== 'error' && steps < 20) {
       state = stepMachine(searchProject, state);
@@ -340,7 +340,7 @@ describe('Simulator & Demo Projects', () => {
       ],
     };
 
-    const nextState = stepMachine(wildcardOrderProject, initRuntimeState(wildcardOrderProject, '1'));
+    const nextState = stepMachine(wildcardOrderProject, initRuntimeState(wildcardOrderProject, '1', 0));
     expect(nextState.currentNodeId).toBe('w_fin_exact');
   });
 
@@ -388,7 +388,7 @@ describe('Simulator & Demo Projects', () => {
       ],
     };
 
-    const st0 = initRuntimeState(loopProj, '1');
+    const st0 = initRuntimeState(loopProj, '1', 0);
     const st1 = stepMachine(loopProj, st0);
     expect(st1.status).toBe('error');
     expect(st1.statusMessage).toContain('зацикливание');
@@ -849,6 +849,39 @@ describe('Zustand Store Reactivity & Mutations', () => {
     expect(noOverlaps).toBe(true);
   });
 
+  it('uses vertical space for an excessively wide branching diagram', () => {
+    const nodes = ['start', 'shift', 'branch', 'finish'].map((id, index) => ({
+      id, type: 'operationNode', position: { x: index * 300, y: 0 },
+      measured: { width: 190, height: 52 }, data: { label: id, opType: 'SHIFT_R' },
+    })) as TuringNode[];
+    const edges = [
+      ['start', 'shift'], ['shift', 'finish'], ['shift', 'branch'], ['branch', 'finish'],
+    ].map(([source, target], i) => ({
+      id: `e${i}`, source, target, data: { mode: '4-tuple', rules: [] },
+    })) as TuringEdge[];
+    const horizontal = autoLayoutGraph(nodes, edges, 'LR');
+    const balanced = autoLayoutGraph(nodes, edges);
+    const width = (layout: TuringNode[]) => Math.max(...layout.map((n) => n.position.x)) - Math.min(...layout.map((n) => n.position.x));
+    expect(width(balanced)).toBeLessThan(width(horizontal));
+    expect(new Set(balanced.map((n) => n.position.y)).size).toBeGreaterThan(1);
+    expect(balanced.find((n) => n.id === 'start')!.position.x).toBeLessThan(balanced.find((n) => n.id === 'shift')!.position.x);
+  });
+
+  it('wraps a long linear machine into horizontal rows', () => {
+    const nodes = Array.from({ length: 7 }, (_, i) => ({
+      id: `n${i}`, type: 'operationNode', position: { x: 0, y: 0 },
+      measured: { width: 190, height: 52 }, data: { label: `n${i}`, opType: 'SHIFT_R' },
+    })) as TuringNode[];
+    const edges = nodes.slice(1).map((node, i) => ({
+      id: `e${i}`, source: nodes[i].id, target: node.id, data: { mode: '4-tuple', rules: [] },
+    })) as TuringEdge[];
+    const layout = autoLayoutGraph(nodes, edges);
+    expect(new Set(layout.map((node) => node.position.y)).size).toBe(2);
+    expect(layout[0].position.x).toBeLessThan(layout[1].position.x);
+    expect(layout[3].position.x).toBe(layout[4].position.x);
+    expect(layout[4].position.x).toBeGreaterThan(layout[5].position.x);
+  });
+
   it('parses, compiles, creates, inserts VTM code fragments and handles Delete/Backspace', () => {
     const store = useTuringStore.getState();
     const parsedVtm = parseVTMCodeDetailed('r^3 R 0', DEMO_PROJECT_1.alphabet);
@@ -927,7 +960,7 @@ describe('Zustand Store Reactivity & Mutations', () => {
       initialTape: { 0: '1', 1: '1', 2: '1', 3: '1' },
       initialHeadPosition: 0,
     };
-    let vtmCodeState = initRuntimeState(vtmCodeProject);
+    let vtmCodeState = initRuntimeState(vtmCodeProject, undefined, 0);
     let vtmCodeSteps = 0;
     while (vtmCodeState.status !== 'halted' && vtmCodeState.status !== 'error' && vtmCodeSteps < 50) {
       vtmCodeState = stepMachine(vtmCodeProject, vtmCodeState);
@@ -1097,6 +1130,16 @@ describe('Zustand Store Reactivity & Mutations', () => {
     expect(nearestPorts[0].targetHandle).toBe('left');
     expect(nearestPorts[1].sourceHandle).toBe('bottom');
     expect(nearestPorts[1].targetHandle).toBe('top');
+
+    const diagonalPorts = assignNearestEdgeHandles(
+      [
+        { id: 'a', type: 'operationNode', position: { x: 0, y: 400 }, data: {} },
+        { id: 'b', type: 'operationNode', position: { x: 200, y: 0 }, data: {} },
+      ] as TuringNode[],
+      [{ id: 'diagonal', source: 'a', target: 'b', data: { mode: '4-tuple', rules: [] } }] as TuringEdge[]
+    );
+    expect(diagonalPorts[0].sourceHandle).toBe('right');
+    expect(diagonalPorts[0].targetHandle).toBe('left');
 
     const fanOutPorts = assignNearestEdgeHandles(
       [

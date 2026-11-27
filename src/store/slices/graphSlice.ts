@@ -70,6 +70,8 @@ function getTerminalSourceError(node: TuringNode | undefined): string | null {
 export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
   let pendingDragSnapshot: EditorSnapshot | null = null;
   let lastNodeEditMeta: { id: string; at: number } | null = null;
+  let pendingPasteDrag: { ids: Set<string>; historyLength: number } | null = null;
+  let clipboard: { projectId: string; nodes: TuringNode[]; edges: TuringEdge[]; rules5: ProjectSession['rules5']; rules4: ProjectSession['rules4']; pastes: number } | null = null;
 
   return {
     editorUndoStack: [],
@@ -77,7 +79,77 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
     portError: null,
     clearPortError: () => set({ portError: null }),
 
+    copySelectedNodes: () => {
+      const project = get().getActiveProject();
+      const selected = project.nodes.filter((node) => node.selected);
+      const nodes = selected.length ? selected : project.nodes.filter((node) => node.id === get().selectedNodeId);
+      if (!nodes.length) return false;
+      const ids = new Set(nodes.map((node) => node.id));
+      clipboard = JSON.parse(JSON.stringify({
+        projectId: project.id, nodes,
+        edges: project.edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)),
+        rules5: project.rules5.filter((rule) => ids.has(rule.fromState) && ids.has(rule.toState)),
+        rules4: project.rules4.filter((rule) => ids.has(rule.fromState) && ids.has(rule.toState)),
+        pastes: 0,
+      }));
+      return true;
+    },
+
+    pasteSelectedNodes: () => {
+      const project = get().getActiveProject();
+      if (!clipboard || clipboard.projectId !== project.id) return false;
+      const copied = clipboard;
+      const used = new Set([
+        ...project.nodes.map((n) => n.id), ...project.edges.map((e) => e.id),
+        ...project.rules4.map((r) => r.id), ...project.rules5.map((r) => r.id),
+        ...project.edges.flatMap((e) => (e.data?.rules ?? []).map((r) => r.id)),
+      ]);
+      const unique = (id: string) => {
+        let n = 1;
+        while (used.has(`${id}_copy${n}`)) n++;
+        const result = `${id}_copy${n}`;
+        used.add(result);
+        return result;
+      };
+      const nodeIds = new Map(copied.nodes.map((n) => [n.id, unique(n.id)]));
+      const ruleIds = new Map<string, string>();
+      const ruleId = (id: string) => {
+        if (!ruleIds.has(id)) ruleIds.set(id, unique(id));
+        return ruleIds.get(id)!;
+      };
+      const offset = 40 * ++copied.pastes;
+      const newNodes = copied.nodes.map((n) => ({
+        ...n, id: nodeIds.get(n.id)!, selected: true,
+        position: { x: n.position.x + offset, y: n.position.y + offset },
+        dragging: false,
+      }));
+      const newEdges = copied.edges.map((e) => {
+        const data = e.data ? { ...e.data, rules: e.data.rules.map((r) => ({ ...r, id: ruleId(r.id) })) } : undefined;
+        if (data) delete (data as Record<string, unknown>).wire;
+        return { ...e, id: unique(e.id), source: nodeIds.get(e.source)!, target: nodeIds.get(e.target)!, selected: false, data };
+      });
+      const remapRule = <T extends { id: string; fromState: string; toState: string }>(rule: T): T => ({
+        ...rule, id: ruleId(rule.id), fromState: nodeIds.get(rule.fromState)!, toState: nodeIds.get(rule.toState)!,
+      });
+      get().pushEditorSnapshot();
+      get().updateActiveProject((prev) => {
+        const nodes = [...prev.nodes.map((n) => ({ ...n, selected: false })), ...newNodes];
+        const edges = [...prev.edges.map((e) => ({ ...e, selected: false })), ...newEdges];
+        return {
+          ...prev, nodes, edges,
+          rules5: [...prev.rules5, ...copied.rules5.map(remapRule)],
+          rules4: prev.subMode === 'operational'
+            ? compileOperationalDiagramTo4Tuples(nodes, edges, prev.alphabet, prev.subMachines)
+            : [...prev.rules4, ...copied.rules4.map(remapRule)],
+        };
+      });
+      set({ selectedNodeId: newNodes.length === 1 ? newNodes[0].id : null, selectedEdgeId: null });
+      pendingPasteDrag = { ids: new Set(newNodes.map((n) => n.id)), historyLength: get().editorUndoStack.length };
+      return true;
+    },
+
     pushEditorSnapshot: (snapshot?: EditorSnapshot) => {
+      pendingPasteDrag = null;
       const snap = snapshot ?? captureEditorSnapshot(get().getActiveProject());
       set((state) => {
         const nextStack = [...state.editorUndoStack, snap];
@@ -93,11 +165,14 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
 
     clearEditorHistory: () => {
       pendingDragSnapshot = null;
+      pendingPasteDrag = null;
       lastNodeEditMeta = null;
       set({ editorUndoStack: [], editorRedoStack: [] });
     },
 
     undoEditor: () => {
+      pendingPasteDrag = null;
+      pendingDragSnapshot = null;
       const { editorUndoStack, editorRedoStack } = get();
       if (editorUndoStack.length === 0) return;
 
@@ -119,6 +194,8 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
     },
 
     redoEditor: () => {
+      pendingPasteDrag = null;
+      pendingDragSnapshot = null;
       const { editorUndoStack, editorRedoStack } = get();
       if (editorRedoStack.length === 0) return;
 
@@ -149,7 +226,12 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
       } else if (isDragStart && !pendingDragSnapshot) {
         pendingDragSnapshot = captureEditorSnapshot(get().getActiveProject());
       } else if (isDragEnd && pendingDragSnapshot) {
-        get().pushEditorSnapshot(pendingDragSnapshot);
+        const dragIds = changes.filter((c) => c.type === 'position').map((c) => c.id);
+        const isPastePlacement = pendingPasteDrag &&
+          pendingPasteDrag.historyLength === get().editorUndoStack.length &&
+          dragIds.length > 0 && dragIds.every((id) => pendingPasteDrag!.ids.has(id));
+        if (!isPastePlacement) get().pushEditorSnapshot(pendingDragSnapshot);
+        pendingPasteDrag = null;
         pendingDragSnapshot = null;
       }
 
@@ -793,7 +875,20 @@ export const createGraphSlice: SliceCreator<GraphSlice> = (set, get) => {
       get().updateActiveProject((prev) => ({
         ...prev,
         nodes: newNodes,
+        edges: prev.edges.map((edge) => ({
+          ...edge,
+          sourceHandle: undefined,
+          targetHandle: undefined,
+          data: {
+            ...edge.data,
+            mode: edge.data?.mode ?? prev.mode,
+            rules: edge.data?.rules ?? [],
+            sourcePortMode: 'auto',
+            targetPortMode: 'auto',
+          },
+        })),
       }));
+      set({ portError: null });
     },
   };
 };

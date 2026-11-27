@@ -38,6 +38,7 @@ export const HeaderNavbar: React.FC = () => {
   const [titleInput, setTitleInput] = useState(project.name);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [descInput, setDescInput] = useState(project.description);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const handleToggleToolsTab = (tab: 'check' | 'tests') => {
     setIsDescriptionOpen(false);
@@ -65,9 +66,32 @@ export const HeaderNavbar: React.FC = () => {
     <header className="h-12 px-3 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3 select-none z-20 text-xs">
       {/* Left: Brand & Project Name */}
       <div className="flex items-center gap-2.5 min-w-0">
-        <span className="hidden font-mono text-xs font-semibold tracking-tight lowercase text-zinc-900 dark:text-zinc-100 sm:inline">
-          nojstd
-        </span>
+        <div className="relative" onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setIsAboutOpen(false);
+        }} onKeyDown={(event) => {
+          if (event.key === 'Escape' && isAboutOpen) {
+            event.stopPropagation();
+            setIsAboutOpen(false);
+          }
+        }}>
+          <button type="button" aria-expanded={isAboutOpen} aria-controls="about-nojstd"
+            onClick={() => setIsAboutOpen((open) => !open)}
+            className="font-mono text-xs font-semibold tracking-tight lowercase text-zinc-900 dark:text-zinc-100 hover:text-sky-600">
+            nojstd
+          </button>
+          {isAboutOpen && (
+            <div id="about-nojstd" role="region" aria-label="О проекте nojstd" data-inspector-dropdown
+              className="absolute left-0 top-8 z-50 w-80 max-w-[calc(100vw-1.5rem)] rounded-lg border border-zinc-200 bg-white p-4 text-xs leading-relaxed text-zinc-700 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+              <h2 className="mb-2 font-mono text-sm font-bold text-zinc-900 dark:text-zinc-100">nojstd</h2>
+              <p>© Александр Ведышев и Иван Харьков</p>
+              <p className="mt-2">Проект выполнен в рамках курсовой работы по Фундаментальной информатике в Московском авиационном институте.</p>
+              <a className="mt-3 inline-block text-sky-600 underline hover:text-sky-800 dark:text-sky-400"
+                href="https://github.com/aleksandrvd131/nojstd8" target="_blank" rel="noopener noreferrer">
+                Репозиторий на GitHub ↗
+              </a>
+            </div>
+          )}
+        </div>
 
         <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-1 hidden sm:block" />
 

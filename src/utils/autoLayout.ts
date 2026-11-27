@@ -59,13 +59,52 @@ export function convertOperationNodesToStateNodes(nodes: TuringNode[]): TuringNo
 export function autoLayoutGraph(
   nodes: TuringNode[],
   edges: TuringEdge[],
-  direction = 'LR'
+  direction = 'auto'
 ): TuringNode[] {
+  if (direction === 'auto') {
+    const layout = autoLayoutGraph(nodes, edges, 'balanced');
+    const links = edges.filter((edge) => edge.source !== edge.target);
+    const incoming = new Map(nodes.map((node) => [node.id, 0]));
+    const outgoing = new Map(nodes.map((node) => [node.id, 0]));
+    for (const edge of links) {
+      incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+      outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
+    }
+    // A long, unbranched sequence is easier to follow as a few horizontal
+    // rows than as either one enormous row or a single vertical column.
+    let isChain = nodes.length >= 6 && links.length === nodes.length - 1 &&
+      nodes.every((node) => (incoming.get(node.id) ?? 0) <= 1 && (outgoing.get(node.id) ?? 0) <= 1) &&
+      nodes.filter((node) => incoming.get(node.id) === 0).length === 1;
+    if (isChain) {
+      const visited = new Set<string>();
+      let current: string | undefined = nodes.find((node) => incoming.get(node.id) === 0)?.id;
+      while (current && !visited.has(current)) {
+        visited.add(current);
+        current = links.find((edge) => edge.source === current)?.target;
+      }
+      isChain = visited.size === nodes.length;
+    }
+    if (!isChain) return layout;
+    const ordered = [...layout].sort((a, b) => a.position.x - b.position.x);
+    const width = Math.max(...nodes.map((node) => nodeBox(node).width));
+    const height = Math.max(...nodes.map((node) => nodeBox(node).height));
+    const columns = Math.max(4, Math.ceil(Math.sqrt(nodes.length * 1.5)));
+    const positions = new Map(ordered.map((node, index) => {
+      const row = Math.floor(index / columns);
+      const column = index % columns;
+      return [node.id, {
+        x: 36 + (row % 2 ? columns - 1 - column : column) * (width + 100),
+        y: 36 + row * (height + 140),
+      }];
+    }));
+    return layout.map((node) => ({ ...node, position: positions.get(node.id)! }));
+  }
+  const balanced = direction === 'balanced';
   const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
-    rankdir: direction,
-    ranksep: 125,
+    rankdir: balanced ? 'LR' : direction,
+    ranksep: balanced ? 90 : 125,
     nodesep: 88,
     edgesep: 36,
     marginx: 36,
@@ -83,7 +122,7 @@ export function autoLayoutGraph(
       neighbors.get(e.target)?.add(e.source);
     }
   }
-  if (direction === 'LR') {
+  if (direction === 'LR' || balanced) {
     for (const e of edges) {
       if (
         feedbackEdges.has(e.id) &&
@@ -106,6 +145,13 @@ export function autoLayoutGraph(
     // Back-edges describe cycles, not forward flow. Leaving them out keeps a
     // small return transition from pulling an entire branch into a wide loop.
     if (feedbackEdges.has(e.id) || branches.has(e.source) || branches.has(e.target)) return;
+    // A short detour that rejoins a direct transition is a side branch,
+    // not an extra stage that should push the destination further right.
+    if (balanced && edges.some((entry) =>
+      entry.target === e.source && entry.source !== e.target &&
+      !feedbackEdges.has(entry.id) &&
+      edges.some((direct) => direct.source === entry.source && direct.target === e.target && !feedbackEdges.has(direct.id))
+    )) return;
     g.setEdge(e.source, e.target, {}, `${e.id}-${index}`);
   });
 

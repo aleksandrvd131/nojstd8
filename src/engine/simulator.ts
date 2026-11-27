@@ -69,12 +69,19 @@ export function initRuntimeState(
   customHeadPos?: number
 ): RuntimeState {
   let initialTape: SparseTape = { ...session.initialTape };
-  let headPosition =
+  const nonBlankPositions = Object.entries(initialTape)
+    .filter(([, symbol]) => symbol !== session.alphabet.blankSymbol)
+    .map(([position]) => Number(position))
+    .filter(Number.isFinite);
+  const defaultHeadPosition = nonBlankPositions.length ? Math.max(...nonBlankPositions) + 1 : 0;
+  const headPosition =
     customHeadPos !== undefined
       ? customHeadPos
       : customInputString !== undefined
-      ? 0
-      : session.initialHeadPosition || 0;
+      ? tokenizeTapeInput(customInputString, session.alphabet).length
+      : session.initialHeadPositionExplicit || session.initialHeadPosition !== 0
+      ? session.initialHeadPosition ?? defaultHeadPosition
+      : defaultHeadPosition;
 
   if (customInputString !== undefined) {
     initialTape = {};

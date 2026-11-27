@@ -179,6 +179,7 @@ export interface ProjectSession {
   subMachines: SubMachine[];
   initialTape: SparseTape;
   initialHeadPosition: number;
+  initialHeadPositionExplicit?: boolean;
   testCases: TestCase[];
   createdAt: number;
   updatedAt: number;
