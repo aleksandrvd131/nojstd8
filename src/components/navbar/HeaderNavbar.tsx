@@ -27,6 +27,8 @@ export const HeaderNavbar: React.FC = () => {
   const renameProject = useTuringStore((s) => s.renameProject);
   const updateProjectDescription = useTuringStore((s) => s.updateProjectDescription);
   const projects = useTuringStore((s) => s.projects);
+  const hideEdgeRules = useTuringStore((s) => s.hideEdgeRules);
+  const toggleHideEdgeRules = useTuringStore((s) => s.toggleHideEdgeRules);
 
   const project = useActiveProject();
   const errorCount = useMemo(
@@ -181,6 +183,37 @@ export const HeaderNavbar: React.FC = () => {
             )}
           </div>
         </div>
+
+        <div className="w-[1px] h-4 bg-zinc-200 dark:bg-zinc-800 mx-0.5 hidden sm:block" />
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={hideEdgeRules}
+          aria-label="Скрывать правила переходов"
+          onClick={toggleHideEdgeRules}
+          title={
+            hideEdgeRules
+              ? 'Правила переходов скрыты (показываются при нажатии на переход)'
+              : 'Скрывать правила переходов (показывать только при нажатии или выделении)'
+          }
+          className="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex-shrink-0"
+        >
+          <span
+            className={`relative inline-flex h-3.5 w-6 items-center rounded-full transition-colors ${
+              hideEdgeRules
+                ? 'bg-sky-500'
+                : 'bg-zinc-300 dark:bg-zinc-700'
+            }`}
+          >
+            <span
+              className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow-sm transition-transform ${
+                hideEdgeRules ? 'translate-x-3' : 'translate-x-0.5'
+              }`}
+            />
+          </span>
+          <span className="hidden md:inline whitespace-nowrap">Скрывать правила</span>
+        </button>
       </div>
 
       {/* Right Controls */}

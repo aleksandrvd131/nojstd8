@@ -62,6 +62,7 @@ export interface UiSlice {
   executionSpeedMs: number;
   isRunning: boolean;
   keyboardShortcutsEnabled: boolean;
+  hideEdgeRules: boolean;
 
   toggleTheme: () => void;
   setActiveTab: (tab: 'check' | 'tests') => void;
@@ -79,6 +80,8 @@ export interface UiSlice {
   setExecutionSpeedMs: (speed: number) => void;
   toggleKeyboardShortcuts: () => void;
   setKeyboardShortcutsEnabled: (enabled: boolean) => void;
+  toggleHideEdgeRules: () => void;
+  setHideEdgeRules: (hide: boolean) => void;
 }
 
 export interface ProjectSlice {

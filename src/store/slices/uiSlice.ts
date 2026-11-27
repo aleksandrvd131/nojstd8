@@ -16,6 +16,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   executionSpeedMs: 250,
   isRunning: false,
   keyboardShortcutsEnabled: true,
+  hideEdgeRules: false,
 
   toggleTheme: () =>
     set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
@@ -35,4 +36,7 @@ export const createUiSlice: SliceCreator<UiSlice> = (set) => ({
   toggleKeyboardShortcuts: () =>
     set((state) => ({ keyboardShortcutsEnabled: !state.keyboardShortcutsEnabled })),
   setKeyboardShortcutsEnabled: (enabled) => set({ keyboardShortcutsEnabled: enabled }),
+  toggleHideEdgeRules: () =>
+    set((state) => ({ hideEdgeRules: !state.hideEdgeRules })),
+  setHideEdgeRules: (hide) => set({ hideEdgeRules: hide }),
 });

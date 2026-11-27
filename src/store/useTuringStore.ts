@@ -44,6 +44,7 @@ export const useTuringStore = create<TuringStoreState>()(
         theme: state.theme,
         executionSpeedMs: state.executionSpeedMs,
         keyboardShortcutsEnabled: state.keyboardShortcutsEnabled,
+        hideEdgeRules: state.hideEdgeRules,
       }),
       merge: (persistedState, currentState) => {
         const persisted = (persistedState ?? {}) as Partial<TuringStoreState>;

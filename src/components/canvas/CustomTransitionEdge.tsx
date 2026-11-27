@@ -30,6 +30,7 @@ export const CustomTransitionEdge = memo(
     const edgeData = data as unknown as CustomEdgeData;
     const runtimeActiveEdgeId = useTuringStore((s) => s.runtime.activeEdgeId);
     const selectedEdgeId = useTuringStore((s) => s.selectedEdgeId);
+    const hideEdgeRules = useTuringStore((s) => s.hideEdgeRules);
     const setSelectedEdgeId = useTuringStore((s) => s.setSelectedEdgeId);
     const setSelectedNodeId = useTuringStore((s) => s.setSelectedNodeId);
     const openRuleModal = useTuringStore((s) => s.openRuleModal);
@@ -208,6 +209,7 @@ export const CustomTransitionEdge = memo(
     };
 
     const showActionWindow = !!(isSelected || isActive);
+    const showEdgeLabel = !hideEdgeRules || isSelected;
 
     return (
       <>
@@ -230,93 +232,95 @@ export const CustomTransitionEdge = memo(
           }}
         />
 
-        <EdgeLabelRenderer>
-          <div
-            style={{
-              position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX + offset.x}px,${labelY + offset.y}px)`,
-              pointerEvents: 'all',
-            }}
-            className="flex items-center justify-center z-20"
-          >
+        {showEdgeLabel && (
+          <EdgeLabelRenderer>
             <div
-              onMouseDown={handleDragStart}
-              data-export-active-label={isActive ? '' : undefined}
-              className={clsx(
-                'flex max-w-[240px] flex-wrap items-center justify-center gap-1 rounded-full border bg-white/95 px-1.5 py-1 shadow-md backdrop-blur-sm dark:bg-zinc-900/95 cursor-move select-none',
-                showActionWindow
-                  ? 'border-sky-400 dark:border-sky-500'
-                  : 'border-zinc-200/90 dark:border-zinc-700'
-              )}
-              title="Окно действий перехода. Перетащите для смещения"
+              style={{
+                position: 'absolute',
+                transform: `translate(-50%, -50%) translate(${labelX + offset.x}px,${labelY + offset.y}px)`,
+                pointerEvents: 'all',
+              }}
+              className="flex items-center justify-center z-20"
             >
-              {showActionWindow && (
-                <div
-                  data-export-control=""
-                  className="flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-grab active:cursor-grabbing px-0.5"
-                  title="Перетащите окно действий"
-                >
-                  <GripVertical className="w-3 h-3" />
-                </div>
-              )}
-              {rules.map((rule) => {
-                let text = '';
-                if (mode === '5-tuple') {
-                  const write = rule.writeSymbol ?? rule.readSymbol;
-                  const move = rule.move ?? 'N';
-                  text = `${rule.readSymbol} → ${write}, ${move}`;
-                } else if (subMode === 'operational') {
-                  const isWild =
-                    rule.isWildcard === true ||
-                    (rule.isWildcard === undefined && !rule.isComplement && rule.readSymbol === '*');
-                  text = isWild
-                    ? '*'
-                    : rule.isComplement
-                    ? `¬${rule.readSymbol}`
-                    : rule.readSymbol;
-                } else {
-                  text = `${rule.readSymbol} : ${rule.command || 'N'}`;
-                }
-
-                return (
-                  <div
-                    key={rule.id}
-                    data-export-active-rule={isActive ? '' : undefined}
-                    onClick={(e) => handleRuleClick(e, rule)}
-                    className={clsx(
-                      'group/pill flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono font-medium cursor-pointer transition-colors',
-                      isActive
-                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 font-bold'
-                        : 'bg-zinc-100 text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
-                    )}
-                    title="Нажмите для редактирования правила"
-                  >
-                    <span>{text}</span>
-                    <button
-                      data-export-control=""
-                      type="button"
-                      onClick={(e) => handleDeleteRule(e, rule.id)}
-                      className="opacity-0 group-hover/pill:opacity-100 text-zinc-400 hover:text-rose-500 transition-opacity ml-0.5"
-                      title="Удалить правило"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                );
-              })}
-
-              <button
-                data-export-control=""
-                type="button"
-                onClick={handleAddRuleClick}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
-                title="Добавить правило перехода"
+              <div
+                onMouseDown={handleDragStart}
+                data-export-active-label={isActive ? '' : undefined}
+                className={clsx(
+                  'flex max-w-[240px] flex-wrap items-center justify-center gap-1 rounded-full border bg-white/95 px-1.5 py-1 shadow-md backdrop-blur-sm dark:bg-zinc-900/95 cursor-move select-none',
+                  showActionWindow
+                    ? 'border-sky-400 dark:border-sky-500'
+                    : 'border-zinc-200/90 dark:border-zinc-700'
+                )}
+                title="Окно действий перехода. Перетащите для смещения"
               >
-                <Plus className="w-3 h-3" />
-              </button>
+                {showActionWindow && (
+                  <div
+                    data-export-control=""
+                    className="flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-grab active:cursor-grabbing px-0.5"
+                    title="Перетащите окно действий"
+                  >
+                    <GripVertical className="w-3 h-3" />
+                  </div>
+                )}
+                {rules.map((rule) => {
+                  let text = '';
+                  if (mode === '5-tuple') {
+                    const write = rule.writeSymbol ?? rule.readSymbol;
+                    const move = rule.move ?? 'N';
+                    text = `${rule.readSymbol} → ${write}, ${move}`;
+                  } else if (subMode === 'operational') {
+                    const isWild =
+                      rule.isWildcard === true ||
+                      (rule.isWildcard === undefined && !rule.isComplement && rule.readSymbol === '*');
+                    text = isWild
+                      ? '*'
+                      : rule.isComplement
+                      ? `¬${rule.readSymbol}`
+                      : rule.readSymbol;
+                  } else {
+                    text = `${rule.readSymbol} : ${rule.command || 'N'}`;
+                  }
+
+                  return (
+                    <div
+                      key={rule.id}
+                      data-export-active-rule={isActive ? '' : undefined}
+                      onClick={(e) => handleRuleClick(e, rule)}
+                      className={clsx(
+                        'group/pill flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono font-medium cursor-pointer transition-colors',
+                        isActive
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200 font-bold'
+                          : 'bg-zinc-100 text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700'
+                      )}
+                      title="Нажмите для редактирования правила"
+                    >
+                      <span>{text}</span>
+                      <button
+                        data-export-control=""
+                        type="button"
+                        onClick={(e) => handleDeleteRule(e, rule.id)}
+                        className="opacity-0 group-hover/pill:opacity-100 text-zinc-400 hover:text-rose-500 transition-opacity ml-0.5"
+                        title="Удалить правило"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+
+                <button
+                  data-export-control=""
+                  type="button"
+                  onClick={handleAddRuleClick}
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                  title="Добавить правило перехода"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
+              </div>
             </div>
-          </div>
-        </EdgeLabelRenderer>
+          </EdgeLabelRenderer>
+        )}
       </>
     );
   }

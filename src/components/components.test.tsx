@@ -16,8 +16,9 @@ import { SessionManagerDrawer } from './sidebar/SessionManagerDrawer';
 import { VTMCodeInput } from './inspector/VTMCodeInput';
 import { HeaderNavbar } from './navbar/HeaderNavbar';
 import { App } from '../App';
-import { ReactFlowProvider } from '@xyflow/react';
+import { ReactFlow, ReactFlowProvider, Position } from '@xyflow/react';
 import { OperationNode } from './canvas/OperationNode';
+import { CustomTransitionEdge } from './canvas/CustomTransitionEdge';
 
 function resetStore(projectId = INITIAL_PROJECTS[0].id) {
   const freshProjects: ProjectSession[] = JSON.parse(JSON.stringify(INITIAL_PROJECTS));
@@ -37,6 +38,7 @@ function resetStore(projectId = INITIAL_PROJECTS[0].id) {
     isExportModalOpen: false,
     isSessionDrawerOpen: false,
     keyboardShortcutsEnabled: true,
+    hideEdgeRules: false,
   });
 }
 
@@ -385,5 +387,56 @@ describe('React UI Components', () => {
     expect(screen.getByText('Удалить?')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Удалить?'));
     expect(useTuringStore.getState().projects.length).toBe(initialCount - 1);
+  });
+
+  it('toggles edge rule visibility in HeaderNavbar and shows rules only when edge is selected', () => {
+    render(
+      <>
+        <HeaderNavbar />
+        <ReactFlowProvider>
+          <ReactFlow nodes={[]} edges={[]} />
+          <svg>
+            <CustomTransitionEdge
+              {...({
+                id: 'e_test',
+                source: 'a',
+                target: 'b',
+                sourceX: 0,
+                sourceY: 0,
+                targetX: 100,
+                targetY: 0,
+                sourcePosition: Position.Right,
+                targetPosition: Position.Left,
+                selected: false,
+                data: {
+                  mode: '4-tuple',
+                  subMode: 'operational',
+                  rules: [{ id: 'r_test', readSymbol: '*', isWildcard: true }],
+                },
+              } as any)}
+            />
+          </svg>
+        </ReactFlowProvider>
+      </>
+    );
+
+    const toggle = screen.getByRole('switch', { name: 'Скрывать правила переходов' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByTitle('Нажмите для редактирования правила')).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(useTuringStore.getState().hideEdgeRules).toBe(true);
+    expect(screen.queryByTitle('Нажмите для редактирования правила')).not.toBeInTheDocument();
+
+    act(() => {
+      useTuringStore.getState().setSelectedEdgeId('e_test');
+    });
+    expect(screen.getByTitle('Нажмите для редактирования правила')).toBeInTheDocument();
+
+    act(() => {
+      useTuringStore.getState().setSelectedEdgeId(null);
+    });
+    expect(screen.queryByTitle('Нажмите для редактирования правила')).not.toBeInTheDocument();
   });
 });
