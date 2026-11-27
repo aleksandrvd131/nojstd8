@@ -1,5 +1,6 @@
 {
+  "3": "wireLayout.ts",
   "9": "check-graph-freshness.mjs",
-  "23": "VTMCodeInput.tsx",
-  "24": "vitest"
+  "23": "TuringCanvas",
+  "24": "Bi-directional Binding (Canvas <-> Tables/Matrix)"
 }
