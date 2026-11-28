@@ -8,6 +8,7 @@ import {
   TestCase,
   AlphabetConfig,
   EdgeRuleItem,
+  operationRepeatCount,
 } from '../types/turing';
 
 export function tokenizeTapeInput(word: string, alphabet: AlphabetConfig): string[] {
@@ -40,7 +41,7 @@ export function getConfigurationKey(state: RuntimeState, blank: string): string 
     .sort((a, b) => a - b)
     .map((pos) => `${pos}:${state.tape[pos]}`);
   const stackKey = state.callStack
-    .map((f) => `${f.subMachineId}@${f.returnNodeId}`)
+    .map((f) => `${f.subMachineId}@${f.returnNodeId}:${f.repeatRemaining ?? 1}`)
     .join('>');
   return `${state.currentNodeId}|${state.headPosition}|${stackKey}|${tapeEntries.join(',')}`;
 }
@@ -370,6 +371,16 @@ function stepMachineCore(
     // If call stack is not empty, return from submachine!
     if (state.callStack.length > 0) {
       const topFrame = state.callStack[state.callStack.length - 1];
+      if ((topFrame.repeatRemaining ?? 1) > 1) {
+        const machine = subMachines.find(sm => sm.id === topFrame.subMachineId);
+        const start = machine?.nodes.find(n => (n.data as OperationNodeData).opType === 'START');
+        if (!start) return { ...state, status: 'error', statusMessage: 'Не найден START подмашины.' };
+        return {
+          ...state, currentNodeId: start.id,
+          callStack: [...state.callStack.slice(0, -1), { ...topFrame, repeatRemaining: topFrame.repeatRemaining! - 1 }],
+          stepCount: state.stepCount + 1, history: nextHistory, status: 'running',
+        };
+      }
       const remainingStack = state.callStack.slice(0, -1);
       return {
         ...state,
@@ -392,11 +403,15 @@ function stepMachineCore(
   const newTape = { ...state.tape };
   let newHead = state.headPosition;
   const scannedPositions: number[] = [];
+  const repeat = opData.opType === 'START' ? 1 : operationRepeatCount(opData.repeatCount);
 
+  for (let iteration = 0; iteration < repeat && opData.opType !== 'COMPLEX_MACHINE'; iteration++) {
   if (opData.opType === 'SHIFT_L') {
     newHead -= 1;
+    scannedPositions.push(newHead);
   } else if (opData.opType === 'SHIFT_R') {
     newHead += 1;
+    scannedPositions.push(newHead);
   } else if (opData.opType === 'SEARCH_L') {
     // Search left until blank
     let guard = 0;
@@ -416,7 +431,9 @@ function stepMachineCore(
   } else if (opData.opType === 'WRITE_SYM') {
     const symToWrite = opData.symbolToWrite ?? blank;
     newTape[newHead] = symToWrite;
-  } else if (opData.opType === 'COMPLEX_MACHINE') {
+  }
+  }
+  if (opData.opType === 'COMPLEX_MACHINE') {
     // Look up target submachine
     const subMachine = subMachines.find((sm) => sm.id === opData.subMachineId);
     if (!subMachine) {
@@ -447,6 +464,7 @@ function stepMachineCore(
         subMachineId: subMachine.id,
         subMachineName: subMachine.name,
         returnNodeId: returnTargetId,
+        repeatRemaining: repeat,
       },
     ];
 
@@ -472,8 +490,10 @@ function stepMachineCore(
     outgoingEdges.find((edge) => (edge.data?.rules || []).some(predicate));
 
   const chosenEdge =
-    findEdgeByPriority((r) => !isWildcardRule(r) && !r.isComplement && r.readSymbol === symbolAfterOp) ||
-    findEdgeByPriority((r) => !!r.isComplement && r.readSymbol !== symbolAfterOp) ||
+    outgoingEdges.find(edge => !(edge.data?.rules || []).some(isWildcardRule) &&
+      (edge.data?.rules || []).some(r => !r.isComplement && r.readSymbol === symbolAfterOp)) ||
+    outgoingEdges.find(edge => !(edge.data?.rules || []).some(isWildcardRule) &&
+      (edge.data?.rules || []).some(r => !!r.isComplement && r.readSymbol !== symbolAfterOp)) ||
     findEdgeByPriority((r) => isWildcardRule(r));
 
   const nextTargetNodeId = chosenEdge?.target ?? null;

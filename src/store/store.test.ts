@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProjectSession } from '../types/turing';
 import { DEMO_PROJECT_1, DEMO_PROJECT_2, DEMO_PROJECT_3, INITIAL_PROJECTS } from './demoProjects';
 import { initRuntimeState } from '../engine/simulator';
-import { createDebouncedStorage } from './storage';
+import { createDebouncedStorage, createDeferredJSONStorage } from './storage';
 import {
   useTuringStore,
   handleDebuggerKeyboardShortcut,
@@ -28,6 +28,25 @@ function resetStore() {
 describe('Editor Undo/Redo & Debounced Storage', () => {
   beforeEach(() => {
     resetStore();
+  });
+
+  it('defers serialization as well as storage writes and flushes the latest value', () => {
+    vi.useFakeTimers();
+    const setItem = vi.fn();
+    const storage = createDeferredJSONStorage<{ count: number }>({
+      getItem: () => null, setItem, removeItem: () => {},
+    }, 250);
+    const toJSON = vi.fn(() => ({ count: 2 }));
+    const latest = { count: 2, toJSON };
+    storage.setItem('project', { state: { count: 1 }, version: 0 });
+    storage.setItem('project', { state: latest, version: 0 });
+    expect(toJSON).not.toHaveBeenCalled();
+    expect(setItem).not.toHaveBeenCalled();
+    expect(storage.getItem('project')).toMatchObject({ state: { count: 2 } });
+    storage.flush();
+    expect(toJSON).toHaveBeenCalledTimes(1);
+    expect(setItem).toHaveBeenCalledWith('project', JSON.stringify({ state: { count: 2 }, version: 0 }));
+    vi.useRealTimers();
   });
 
   it('writes 1 to the current tape cell without requiring tape focus', () => {
@@ -81,6 +100,27 @@ describe('Editor Undo/Redo & Debounced Storage', () => {
       readSymbol: rule.readSymbol, isWildcard: !!rule.isWildcard, isComplement: !!rule.isComplement,
     });
     expect(useTuringStore.getState().getActiveProject().edges.find((e) => e.id === edge.id)!.data!.rules).toHaveLength(before);
+  });
+
+  it('absorbs other conditions only on the transition receiving a wildcard', () => {
+    const store = useTuringStore.getState();
+    const project = store.getActiveProject();
+    const edge = project.edges[0];
+    const other = project.edges[1];
+    const otherRules = JSON.stringify(other.data?.rules);
+    store.upsertOperationalEdgeRule({
+      edgeId: edge.id, sourceNodeId: edge.source, targetNodeId: edge.target,
+      readSymbol: '*', isWildcard: true, isComplement: false,
+    });
+    let updated = useTuringStore.getState().getActiveProject();
+    expect(updated.edges.find(e => e.id === edge.id)!.data!.rules).toMatchObject([{ readSymbol: '*', isWildcard: true }]);
+    expect(JSON.stringify(updated.edges.find(e => e.id === other.id)!.data?.rules)).toBe(otherRules);
+    store.upsertOperationalEdgeRule({
+      edgeId: edge.id, sourceNodeId: edge.source, targetNodeId: edge.target,
+      readSymbol: '0', isWildcard: false, isComplement: false,
+    });
+    updated = useTuringStore.getState().getActiveProject();
+    expect(updated.edges.find(e => e.id === edge.id)!.data!.rules).toHaveLength(1);
   });
 
   it('starts custom input after the last token unless a head position is specified', () => {

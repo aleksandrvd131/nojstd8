@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
 import { ProjectSession, RuntimeStats } from '../types/turing';
 import { INITIAL_PROJECTS } from './demoProjects';
-import { debouncedPersistStorage, safeStorage } from './storage';
+import { debouncedPersistStorage, deferredProjectStorage, safeStorage } from './storage';
 import { TuringStoreState } from './types';
 import { createUiSlice } from './slices/uiSlice';
 import { createProjectSlice } from './slices/projectSlice';
@@ -37,7 +37,7 @@ export const useTuringStore = create<TuringStoreState>()(
     }),
     {
       name: 'turing_diagrammer_storage_v1',
-      storage: createJSONStorage(() => debouncedPersistStorage),
+      storage: deferredProjectStorage,
       partialize: (state) => ({
         projects: state.projects,
         activeProjectId: state.activeProjectId,

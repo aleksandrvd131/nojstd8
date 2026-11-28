@@ -25,6 +25,11 @@ export type OperationalNodeType =
   | 'COMPLEX_MACHINE'; // Nested sub-machine call
 
 export type CodeOperation = 'SHIFT_L' | 'SHIFT_R' | 'SEARCH_L' | 'SEARCH_R';
+export const MAX_OPERATION_REPEAT = 100;
+
+export function operationRepeatCount(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1 && value <= MAX_OPERATION_REPEAT ? value : 1;
+}
 
 export interface ParsedCodeOp {
   opType: OperationalNodeType;
@@ -65,6 +70,7 @@ export interface OperationNodeData extends Record<string, unknown> {
   symbolToWrite?: string;
   subMachineId?: string;
   subMachineName?: string;
+  repeatCount?: number;
   description?: string;
   isCurrent?: boolean;
 }
@@ -129,6 +135,7 @@ export interface CallStackFrame {
   subMachineId: string;
   subMachineName: string;
   returnNodeId: string;
+  repeatRemaining?: number;
 }
 
 export interface ExecutionSnapshot {

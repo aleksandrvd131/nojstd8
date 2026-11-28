@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
-import { validateMachine } from '../../engine/validator';
+import { validateMachineCached } from '../../engine/validator';
 import {
   FolderOpen,
   BookOpen,
@@ -29,7 +29,7 @@ export const HeaderNavbar: React.FC = () => {
 
   const project = useActiveProject();
   const errorCount = useMemo(
-    () => validateMachine(project).filter((i) => i.severity === 'error').length,
+    () => validateMachineCached(project).filter((i) => i.severity === 'error').length,
     [project]
   );
 

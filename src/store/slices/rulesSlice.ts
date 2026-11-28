@@ -628,7 +628,10 @@ export const createRulesSlice: SliceCreator<RulesSlice> = (set, get) => ({
       return r.id !== ruleId && wildcard === !!isWildcard &&
         (wildcard || (r.readSymbol === readSymbol && !!r.isComplement === !!isComplement));
     });
-    if (duplicate) return;
+    const existingWildcard = existing?.data?.rules.some(r => r.id !== ruleId &&
+      (r.isWildcard === true || (r.isWildcard === undefined && !r.isComplement && r.readSymbol === '*')));
+    if ((duplicate && !(isWildcard && (existing?.data?.rules.length ?? 0) > 1)) ||
+        (!isWildcard && existingWildcard)) return;
     get().pushEditorSnapshot();
     get().updateActiveProject((prev) => {
       const matchedEdge = prev.edges.find(
@@ -655,7 +658,7 @@ export const createRulesSlice: SliceCreator<RulesSlice> = (set, get) => ({
         updatedEdges = prev.edges.map((e) => {
           if (e.id === matchedEdge.id) {
             const rules = e.data?.rules || [];
-            const updatedRules = ruleId
+            const updatedRules = isWildcard ? [newRuleItem] : ruleId
               ? rules.map((r) => (r.id === ruleId ? newRuleItem : r))
               : [...rules, newRuleItem];
             return {

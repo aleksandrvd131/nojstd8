@@ -82,7 +82,7 @@ export const VTMCodeInput: React.FC = () => {
 
   const preview = ops
     .map((op) =>
-      op.opType === 'WRITE_SYM' ? op.symbolToWrite ?? '_' : getVTMCodeOpLabel(op)
+      `${op.opType === 'WRITE_SYM' ? op.symbolToWrite ?? '_' : getVTMCodeOpLabel(op)}${(op.repeatCount ?? 1) > 1 ? `^${op.repeatCount}` : ''}`
     )
     .join(' → ');
 

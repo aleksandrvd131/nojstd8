@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
-import { validateMachine } from '../../engine/validator';
+import { validateMachineCached } from '../../engine/validator';
 import { CheckCircle2, AlertTriangle, AlertCircle, Info, ShieldCheck } from 'lucide-react';
 
 export const DiagnosticsPanel: React.FC = () => {
@@ -8,7 +8,7 @@ export const DiagnosticsPanel: React.FC = () => {
   const setSelectedEdgeId = useTuringStore((s) => s.setSelectedEdgeId);
 
   const project = useActiveProject();
-  const issues = useMemo(() => validateMachine(project), [project]);
+  const issues = useMemo(() => validateMachineCached(project), [project]);
 
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');

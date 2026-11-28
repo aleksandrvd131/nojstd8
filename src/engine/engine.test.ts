@@ -17,7 +17,7 @@ import {
   assignNearestEdgeHandles,
   findFeedbackEdgeIds,
 } from './transpiler';
-import { validateMachine } from './validator';
+import { validateMachine, validateMachineCached } from './validator';
 import {
   exportToLaTeX,
   exportToTikZ,
@@ -46,6 +46,16 @@ function resetStore() {
     keyboardShortcutsEnabled: true,
   });
 }
+
+describe('compact operation repetition', () => {
+  it('keeps repetitions in one node and compiles the intermediate operations', () => {
+    const result = compileVTMCode('r^5 R^5 0^2', DEMO_PROJECT_1.alphabet);
+    expect(result.nodes).toHaveLength(3);
+    expect(result.nodes.map(node => node.data.repeatCount)).toEqual([5, 5, 2]);
+    expect(result.rules4.some(rule => rule.fromState.includes('__repeat_'))).toBe(true);
+    expect(parseVTMCodeDetailed('R^101', DEMO_PROJECT_1.alphabet).errors).toHaveLength(1);
+  });
+});
 
 const subMachineProject: ProjectSession = {
   id: 'test-submachine-project',
@@ -246,6 +256,21 @@ const searchProject: ProjectSession = {
 };
 
 describe('Simulator & Demo Projects', () => {
+  it('repeats a submachine call without falsely detecting a cycle', () => {
+    const project = {
+      ...subMachineProject,
+      nodes: subMachineProject.nodes.map(node => node.id === 'main_complex'
+        ? { ...node, data: { ...node.data, repeatCount: 3 } } : node),
+    };
+    let state = initRuntimeState(project, '00', 0);
+    for (let i = 0; i < 30 && state.status !== 'halted' && state.status !== 'error'; i++) {
+      state = stepMachine(project, state);
+    }
+    expect(state.status).toBe('halted');
+    expect(state.headPosition).toBe(3);
+    expect(state.tape[1]).toBe('1');
+    expect(state.tape[3]).toBe('1');
+  });
   it('passes all test cases for Demo Project 1 (5-Tuple)', () => {
     for (const tc of DEMO_PROJECT_1.testCases) {
       const result = runTestCase(DEMO_PROJECT_1, tc);
@@ -500,6 +525,17 @@ describe('Transpiler', () => {
 });
 
 describe('Validator', () => {
+  it('reuses diagnostics for geometry changes but invalidates semantic edits', () => {
+    const project = subMachineProject;
+    const first = validateMachineCached(project);
+    const moved = { ...project, nodes: project.nodes.map(node => ({
+      ...node, position: { x: node.position.x + 20, y: node.position.y },
+    })) };
+    expect(validateMachineCached(moved)).toBe(first);
+    const edited = { ...moved, nodes: moved.nodes.map((node, index) => index === 0
+      ? { ...node, data: { ...node.data, label: 'Changed' } } : node) };
+    expect(validateMachineCached(edited)).not.toBe(first);
+  });
   it('validates clean demo projects with 0 errors', () => {
     expect(validateMachine(DEMO_PROJECT_1).filter((i) => i.severity === 'error')).toHaveLength(0);
     expect(validateMachine(DEMO_PROJECT_2).filter((i) => i.severity === 'error')).toHaveLength(0);
@@ -886,18 +922,19 @@ describe('Zustand Store Reactivity & Mutations', () => {
     const store = useTuringStore.getState();
     const parsedVtm = parseVTMCodeDetailed('r^3 R 0', DEMO_PROJECT_1.alphabet);
     expect(parsedVtm.errors).toHaveLength(0);
-    expect(parsedVtm.ops).toHaveLength(5);
+    expect(parsedVtm.ops).toHaveLength(3);
     expect(parsedVtm.ops.map((o) => o.opType).join(',')).toBe(
-      'SHIFT_R,SHIFT_R,SHIFT_R,SEARCH_R,WRITE_SYM'
+      'SHIFT_R,SEARCH_R,WRITE_SYM'
     );
-    expect(parsedVtm.ops[4].symbolToWrite).toBe('0');
+    expect(parsedVtm.ops[0].repeatCount).toBe(3);
+    expect(parsedVtm.ops[2].symbolToWrite).toBe('0');
 
     const invalidVtm = parseVTMCodeDetailed('r^0 X', DEMO_PROJECT_1.alphabet);
     expect(invalidVtm.errors).toHaveLength(2);
 
     const compiledVtm = compileVTMCode('r^3 R 0', DEMO_PROJECT_1.alphabet);
-    expect(compiledVtm.nodes).toHaveLength(5);
-    expect(compiledVtm.edges).toHaveLength(4);
+    expect(compiledVtm.nodes).toHaveLength(3);
+    expect(compiledVtm.edges).toHaveLength(2);
     expect(
       compiledVtm.edges.every((edge) => edge.sourceHandle === 'right' && edge.targetHandle === 'left')
     ).toBe(true);
@@ -978,7 +1015,7 @@ describe('Zustand Store Reactivity & Mutations', () => {
     const createdVtmProject = useTuringStore.getState().getActiveProject();
     expect(createdVtmProject.name).toBe('VTM Code Test');
     expect(createdVtmProject.subMode).toBe('operational');
-    expect(createdVtmProject.nodes).toHaveLength(5);
+    expect(createdVtmProject.nodes).toHaveLength(3);
     expect(Object.keys(createdVtmProject.initialTape)).toHaveLength(0);
     expect(useTuringStore.getState().runtime.currentNodeId).toBe(createdVtmProject.nodes[0].id);
 

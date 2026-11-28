@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTuringStore, useActiveProject } from '../../store/useTuringStore';
 import { StateNodeType, OperationalNodeType, StateNodeData, OperationNodeData } from '../../types/turing';
+import { MAX_OPERATION_REPEAT } from '../../types/turing';
 import {
   X,
   Trash2,
@@ -219,6 +220,23 @@ export const NodeInspector: React.FC = () => {
               <option value="COMPLEX_MACHINE">COMPLEX_MACHINE — Подмашина</option>
             </select>
           </div>
+
+          {opData.opType !== 'START' && opData.opType !== 'FINISH' && (
+            <div>
+              <label className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                Повторения
+              </label>
+              <input type="number" min={1} max={MAX_OPERATION_REPEAT} step={1}
+                value={opData.repeatCount ?? 1}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  if (Number.isInteger(value) && value >= 1 && value <= MAX_OPERATION_REPEAT) {
+                    updateNodeData(node.id, { repeatCount: value });
+                  }
+                }}
+                className="w-full px-2 py-1 text-xs rounded bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700" />
+            </div>
+          )}
 
           {/* Label field */}
           <div>

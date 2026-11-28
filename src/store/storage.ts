@@ -1,4 +1,4 @@
-import { StateStorage } from 'zustand/middleware';
+import { PersistStorage, StateStorage, StorageValue } from 'zustand/middleware';
 
 const memoryStorage = new Map<string, string>();
 
@@ -103,8 +103,51 @@ export function createDebouncedStorage(
 
 export const debouncedPersistStorage = createDebouncedStorage(safeStorage, 250);
 
+// Unlike createJSONStorage wrapped around a debounced StateStorage, this
+// delays JSON.stringify itself until the write is actually flushed.
+export function createDeferredJSONStorage<T>(base: StateStorage = safeStorage, delayMs = 250): PersistStorage<T> & { flush: () => void } {
+  const pending = new Map<string, StorageValue<T>>();
+  const timers = new Map<string, ReturnType<typeof setTimeout>>();
+  const flushKey = (name: string) => {
+    const timer = timers.get(name);
+    if (timer !== undefined) clearTimeout(timer);
+    timers.delete(name);
+    const value = pending.get(name);
+    if (value !== undefined) {
+      pending.delete(name);
+      return base.setItem(name, JSON.stringify(value));
+    }
+  };
+  return {
+    getItem: (name) => {
+      const value = pending.get(name);
+      if (value !== undefined) return value;
+      const stored = base.getItem(name);
+      const parse = (text: string | null) => text === null ? null : JSON.parse(text) as StorageValue<T>;
+      return stored instanceof Promise ? stored.then(parse) : parse(stored);
+    },
+    setItem: (name, value) => {
+      pending.set(name, value);
+      const timer = timers.get(name);
+      if (timer !== undefined) clearTimeout(timer);
+      timers.set(name, setTimeout(() => { void flushKey(name); }, delayMs));
+    },
+    removeItem: (name) => {
+      const timer = timers.get(name);
+      if (timer !== undefined) clearTimeout(timer);
+      timers.delete(name);
+      pending.delete(name);
+      return base.removeItem(name);
+    },
+    flush: () => { for (const name of pending.keys()) void flushKey(name); },
+  };
+}
+
+export const deferredProjectStorage = createDeferredJSONStorage<Partial<import('./types').TuringStoreState>>();
+
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
     debouncedPersistStorage.flush();
+    deferredProjectStorage.flush();
   });
 }

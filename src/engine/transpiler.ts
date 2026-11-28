@@ -10,6 +10,8 @@ import {
   OperationalNodeType,
   ParsedCodeOp,
   SubMachine,
+  MAX_OPERATION_REPEAT,
+  operationRepeatCount,
 } from '../types/turing';
 
 /**
@@ -125,9 +127,11 @@ function isWildcardRule(r: { isWildcard?: boolean; isComplement?: boolean; readS
 function findMatchingOperationalEdge(outgoing: TuringEdge[], sym: string): TuringEdge | undefined {
   return (
     outgoing.find((e) =>
+      !e.data?.rules?.some(isWildcardRule) &&
       e.data?.rules?.some((r) => !isWildcardRule(r) && !r.isComplement && r.readSymbol === sym)
     ) ||
-    outgoing.find((e) => e.data?.rules?.some((r) => !!r.isComplement && r.readSymbol !== sym)) ||
+    outgoing.find((e) => !e.data?.rules?.some(isWildcardRule) &&
+      e.data?.rules?.some((r) => !!r.isComplement && r.readSymbol !== sym)) ||
     outgoing.find((e) => e.data?.rules?.some((r) => isWildcardRule(r)))
   );
 }
@@ -145,6 +149,29 @@ export function compileOperationalDiagramTo4Tuples(
   visitedSubMachineIds: Set<string> = new Set(),
   returnTargetBySym?: Map<string, string>
 ): FourTupleRule[] {
+  // Expand repetitions only for compilation, never in the visual diagram.
+  const expandedNodes: TuringNode[] = [];
+  const expandedEdges: TuringEdge[] = [];
+  const usedIds = new Set(nodes.map(node => node.id));
+  const lastIds = new Map<string, string>();
+  for (const node of nodes) {
+    const data = node.data as Partial<OperationNodeData>;
+    const count = data.opType === 'START' || data.opType === 'FINISH' ? 1 : operationRepeatCount(data.repeatCount);
+    expandedNodes.push(node);
+    let last = node.id;
+    for (let i = 1; i < count; i++) {
+      let id = `${node.id}__repeat_${i}`;
+      while (usedIds.has(id)) id += '_';
+      usedIds.add(id);
+      expandedNodes.push({ ...node, id, data: { ...node.data, repeatCount: 1 } });
+      expandedEdges.push({ id: `repeat_${last}_${id}`, source: last, target: id,
+        data: { mode: '4-tuple', subMode: 'operational', rules: [{ id: `repeat_rule_${last}_${id}`, readSymbol: '*', isWildcard: true }] } });
+      last = id;
+    }
+    lastIds.set(node.id, last);
+  }
+  nodes = expandedNodes;
+  edges = [...expandedEdges, ...edges.map(edge => ({ ...edge, source: lastIds.get(edge.source) ?? edge.source }))];
   const rules4: FourTupleRule[] = [];
   const allSymbols = [...alphabet.symbols, alphabet.blankSymbol];
   const prefixId = (id: string) => `${statePrefix}${id}`;
@@ -471,20 +498,19 @@ export function parseVTMCodeDetailed(
       continue;
     }
 
-    if (!Number.isFinite(count) || count < 1) {
-      errors.push(`Некорректное число повторений в "${token}" (нужно >= 1)`);
+    if (!Number.isSafeInteger(count) || count < 1 || count > MAX_OPERATION_REPEAT) {
+      errors.push(`Некорректное число повторений в "${token}" (нужно 1–${MAX_OPERATION_REPEAT})`);
       continue;
     }
 
-    const functionDefinition = !repeatMatch
-      ? functions.find((candidate) => candidate.code === base)
-      : undefined;
+    const functionDefinition = functions.find((candidate) => candidate.code === base);
     if (functionDefinition) {
       ops.push({
         opType: 'COMPLEX_MACHINE',
         subMachineId: functionDefinition.id,
         subMachineName: functionDefinition.name,
         functionCode: functionDefinition.code,
+        repeatCount: count,
       });
       continue;
     }
@@ -508,16 +534,12 @@ export function parseVTMCodeDetailed(
     }
 
     if (opType) {
-      for (let i = 0; i < count; i++) {
-        ops.push({ opType });
-      }
+      ops.push({ opType, repeatCount: count });
       continue;
     }
 
     if (symbols.has(base)) {
-      for (let i = 0; i < count; i++) {
-        ops.push({ opType: 'WRITE_SYM', symbolToWrite: base });
-      }
+      ops.push({ opType: 'WRITE_SYM', symbolToWrite: base, repeatCount: count });
       continue;
     }
 
@@ -566,6 +588,7 @@ export function compileVTMCodeToNodesAndEdges(
         symbolToWrite: op.symbolToWrite,
         subMachineId: op.subMachineId,
         subMachineName: op.subMachineName,
+        repeatCount: operationRepeatCount(op.repeatCount),
       },
     });
 

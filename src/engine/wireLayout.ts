@@ -26,7 +26,7 @@ const anchor = (box: Box, side: Side, gap: number) => ({
   y: box.y + box.height / 2 + normals[side].y * (box.height / 2 + gap),
 });
 
-export function layoutWires(nodes: TuringNode[], edges: TuringEdge[]) {
+export function layoutWires(nodes: TuringNode[], edges: TuringEdge[], options: { interactive?: boolean } = {}) {
   const boxes = new Map(nodes.map(n => [n.id, nodeBox(n)]));
   const obstacles = [...boxes.values()];
   const wires = new Map<string, Wire>();
@@ -40,11 +40,34 @@ export function layoutWires(nodes: TuringNode[], edges: TuringEdge[]) {
     const candidates: Point[][] = [];
     const addX = (x: number) => candidates.push([{ x, y: a.y }, { x, y: b.y }]);
     const addY = (y: number) => candidates.push([{ x: a.x, y }, { x: b.x, y }]);
-    candidates.push([{ x: a.x, y: b.y }], [{ x: b.x, y: a.y }]);
-    addX((a.x + b.x) / 2); addY((a.y + b.y) / 2);
-    for (const o of obstacles) {
-      addX(o.x - 32); addX(o.x + o.width + 32);
-      addY(o.y - 32); addY(o.y + o.height + 32);
+    const facing = (s === 'right' && t === 'left' && a.x <= b.x && a.y === b.y) ||
+      (s === 'left' && t === 'right' && a.x >= b.x && a.y === b.y) ||
+      (s === 'bottom' && t === 'top' && a.y <= b.y && a.x === b.x) ||
+      (s === 'top' && t === 'bottom' && a.y >= b.y && a.x === b.x);
+    const directSpan = segmentBox(start, end);
+    const clearDirect = facing && !obstacles.some(o => overlaps(directSpan, o)) &&
+      !lanes.some(l => overlaps(directSpan, l)) && !labels.some(l => overlaps(directSpan, l));
+    if (clearDirect) {
+      candidates.push([]);
+    } else {
+      candidates.push([{ x: a.x, y: b.y }], [{ x: b.x, y: a.y }]);
+      addX((a.x + b.x) / 2); addY((a.y + b.y) / 2);
+      // While dragging, keep the full collision checks but limit the number
+      // of detour candidates. The normal router runs again on drag end.
+      const detours = options.interactive
+        ? [...obstacles].sort((x, y) => {
+          const distance = (o: Box) => {
+            const cx = o.x + o.width / 2, cy = o.y + o.height / 2;
+            return Math.max(0, Math.min(a.x, b.x) - cx, cx - Math.max(a.x, b.x)) +
+              Math.max(0, Math.min(a.y, b.y) - cy, cy - Math.max(a.y, b.y));
+          };
+          return distance(x) - distance(y);
+        }).slice(0, 8)
+        : obstacles;
+      for (const o of detours) {
+        addX(o.x - 32); addX(o.x + o.width + 32);
+        addY(o.y - 32); addY(o.y + o.height + 32);
+      }
     }
     let best = Infinity, points: Point[] = [];
     for (const middle of candidates) {

@@ -1,0 +1,16 @@
+{
+  "0": "Canvas Routing, VTM Code & Ports",
+  "1": "Store Slices & Inspector Sync",
+  "4": "Diagram Editing & Canvas Docs",
+  "5": "GitHub Pages Deploy Workflow",
+  "6": "Component Architecture & Reference Docs",
+  "7": "CI Verification Pipeline",
+  "10": "TypeScript Compiler Config",
+  "11": "QA Roadmap & Turing Formalisms",
+  "12": "LaTeX, TikZ & Document Exporters",
+  "18": "Project Map & Graphify Docs",
+  "19": "Git Pre-Commit Hook",
+  "20": "Browser Entrypoint",
+  "21": "Tailwind CSS Config",
+  "22": "PostCSS Config"
+}

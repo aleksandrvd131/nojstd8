@@ -129,6 +129,39 @@ export function resolvePorts(nodes: TuringNode[], edges: TuringEdge[]) {
     edge.sourceHandle = sourceSide;
     edge.targetHandle = targetSide;
   });
+  // For a reciprocal pair on the same row, route the return on the same
+  // side of both cards. Opposite sides force it across the forward wire.
+  // Never override a manual pin or mix input and output on a physical port.
+  const pairs = new Map<string, number[]>();
+  resolved.forEach((edge, index) => {
+    const key = JSON.stringify([edge.source, edge.target]);
+    const list = pairs.get(key) ?? [];
+    list.push(index);
+    pairs.set(key, list);
+  });
+  resolved.forEach((edge, index) => {
+    const reverse = pairs.get(JSON.stringify([edge.target, edge.source]));
+    if (!reverse || edge.source === edge.target) return;
+    const other = reverse.find(i => i < index);
+    if (other === undefined) return;
+    const forward = resolved[other], a = boxes.get(edge.source), b = boxes.get(edge.target);
+    if (!a || !b || Math.abs(a.y + a.height / 2 - b.y - b.height / 2) >= 1) return;
+    // Keep the earlier, usually forward, edge straight.
+    if (!['left', 'right'].includes(forward.sourceHandle ?? '') ||
+        !['left', 'right'].includes(forward.targetHandle ?? '')) return;
+    const available = (id: string, side: Side, end: End) =>
+      (endpoints.get(id) ?? []).every(endpoint => endpoint.index === index ||
+        resolved[endpoint.index][`${endpoint.end}Handle`] !== side || endpoint.end === end);
+    const candidates = (['top', 'bottom'] as Side[]).filter(side =>
+      (!pinnedSide(edges[index], 'source') || pinnedSide(edges[index], 'source') === side) &&
+      (!pinnedSide(edges[index], 'target') || pinnedSide(edges[index], 'target') === side) &&
+      available(edge.source, side, 'source') && available(edge.target, side, 'target'));
+    const usage = (side: Side) => [edge.source, edge.target].reduce((sum, id) =>
+      sum + (endpoints.get(id) ?? []).filter(endpoint => endpoint.index !== index &&
+        resolved[endpoint.index][`${endpoint.end}Handle`] === side).length, 0);
+    candidates.sort((x, y) => usage(x) - usage(y));
+    if (candidates.length) edge.sourceHandle = edge.targetHandle = candidates[0];
+  });
   // Pair refinement can move an endpoint, so rebuild the role display.
   for (const [id, list] of endpoints) {
     if (conflicts.has(id)) continue;

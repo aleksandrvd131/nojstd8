@@ -123,9 +123,22 @@ const TuringCanvasInner: React.FC = () => {
     const p = s.projects.find((proj) => proj.id === s.activeProjectId);
     return p ? p.edges : EMPTY_EDGES;
   });
-  const view = useMemo(() => resolvePorts(nodes, edges), [nodes, edges]);
+  // Selection and other presentation-only node updates should not reroute
+  // the entire graph. The routing engines only inspect these box properties.
+  const geometryRef = React.useRef(nodes);
+  const previousGeometry = geometryRef.current;
+  if (nodes.length !== previousGeometry.length || nodes.some((node, index) => {
+    const old = previousGeometry[index];
+    return !old || node.id !== old.id || node.type !== old.type ||
+      node.position.x !== old.position.x || node.position.y !== old.position.y ||
+      node.width !== old.width || node.height !== old.height ||
+      node.measured?.width !== old.measured?.width || node.measured?.height !== old.measured?.height;
+  })) geometryRef.current = nodes;
+  const geometryNodes = geometryRef.current;
+  const isDragging = nodes.some(node => node.dragging);
+  const view = useMemo(() => resolvePorts(geometryNodes, edges), [geometryNodes, edges]);
   const displayEdges = useMemo(() => {
-    const wires = layoutWires(nodes, view.edges);
+    const wires = layoutWires(geometryNodes, view.edges, { interactive: isDragging });
     return view.edges.map((edge) => ({
       ...edge,
       data: {
@@ -134,7 +147,7 @@ const TuringCanvasInner: React.FC = () => {
       },
     }));
   },
-    [nodes, view]
+    [geometryNodes, view, isDragging]
   );
   const selectedEdgeId = useTuringStore(s => s.selectedEdgeId);
   const chosenEdge = edges.find(e => e.id === selectedEdgeId);

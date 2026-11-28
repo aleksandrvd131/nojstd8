@@ -116,6 +116,7 @@ export const OperationNode = memo(({ id, data, selected }: NodeProps) => {
           <div className="flex items-center justify-between gap-1">
             <span className="font-mono text-xs font-bold truncate text-zinc-900 dark:text-zinc-100">
               {nodeData.label || badge.label}
+              {nodeData.opType !== 'START' && nodeData.opType !== 'FINISH' && (nodeData.repeatCount ?? 1) > 1 && <sup>{nodeData.repeatCount}</sup>}
             </span>
             <span
               className={clsx(

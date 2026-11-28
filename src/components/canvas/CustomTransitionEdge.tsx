@@ -115,7 +115,10 @@ export const CustomTransitionEdge = memo(
       labelY = by;
     }
 
-    const rules: EdgeRuleItem[] = edgeData?.rules || [];
+    const allRules: EdgeRuleItem[] = edgeData?.rules || [];
+    const wildcard = subMode === 'operational' && allRules.find(rule =>
+      rule.isWildcard === true || (rule.isWildcard === undefined && !rule.isComplement && rule.readSymbol === '*'));
+    const rules = wildcard ? [wildcard] : allRules;
 
     const handleRuleClick = (e: React.MouseEvent, rule: EdgeRuleItem) => {
       e.stopPropagation();

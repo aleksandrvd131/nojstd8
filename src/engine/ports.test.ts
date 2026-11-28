@@ -36,4 +36,47 @@ describe('wrapped chain routing', () => {
     const resolved = resolvePorts(layout, pinned).edges;
     expect([resolved[5].sourceHandle, resolved[5].targetHandle]).toEqual(['right', 'left']);
   });
+
+  it('wraps the same backbone when it has a return transition and a self-loop', () => {
+    const extra: TuringEdge[] = [
+      { id: 'return', source: 'n5', target: 'n2', data: { mode: '4-tuple', rules: [] } },
+      { id: 'loop', source: 'n3', target: 'n3', data: { mode: '4-tuple', rules: [] } },
+    ];
+    const layout = autoLayoutGraph(nodes, [...edges, ...extra]);
+    expect(layout.map(n => n.position)).toEqual(autoLayoutGraph(nodes, edges).map(n => n.position));
+    const resolved = resolvePorts(layout, [...edges, ...extra]);
+    expect(resolved.conflicts.size).toBe(0);
+    expect(layoutWires(layout, resolved.edges).size).toBe(edges.length + extra.length);
+    expect(autoLayoutGraph(nodes, [...edges, ...extra])).toEqual(layout);
+  });
+
+  it('orders the backbone by transitions rather than input node order', () => {
+    const shuffled = [...nodes].reverse();
+    const layout = autoLayoutGraph(shuffled, edges);
+    const positions = new Map(layout.map(node => [node.id, node.position]));
+    expect(positions.get('n0')!.x).toBeLessThan(positions.get('n1')!.x);
+    expect(positions.get('n3')!.x).toBe(positions.get('n4')!.x);
+  });
+
+  it('wraps a backbone with both forward shortcuts and return transitions', () => {
+    const extra: TuringEdge[] = [
+      { id: 'shortcut', source: 'n1', target: 'n5', data: { mode: '4-tuple', rules: [] } },
+      { id: 'return', source: 'n4', target: 'n2', data: { mode: '4-tuple', rules: [] } },
+    ];
+    const layout = autoLayoutGraph(nodes, [...edges, ...extra]);
+    expect(new Set(layout.map(node => node.position.y)).size).toBe(2);
+    expect(layout.map(node => node.position)).toEqual(autoLayoutGraph(nodes, edges).map(node => node.position));
+  });
+
+  it('routes an adjacent return on one side of both cards', () => {
+    const adjacent = nodes.slice(0, 2).map((node, i) => ({
+      ...node, position: { x: i * 300, y: 0 },
+    }));
+    const forward = { ...edges[0], sourceHandle: undefined, targetHandle: undefined };
+    const back = { ...forward, id: 'back', source: 'n1', target: 'n0' };
+    const resolved = resolvePorts(adjacent, [forward, back]).edges;
+    expect([resolved[0].sourceHandle, resolved[0].targetHandle]).toEqual(['right', 'left']);
+    expect(resolved[1].sourceHandle).toBe(resolved[1].targetHandle);
+    expect(['top', 'bottom']).toContain(resolved[1].sourceHandle);
+  });
 });

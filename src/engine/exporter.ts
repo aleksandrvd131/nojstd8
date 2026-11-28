@@ -5,9 +5,25 @@ import {
   EdgeRuleItem,
   TuringMode,
   FourTupleSubMode,
+  TuringNode,
+  operationRepeatCount,
 } from '../types/turing';
 import { compileOperationalDiagramTo4Tuples } from './transpiler';
 
+function nodeLabel(node: TuringNode): string {
+  const data = node.data as Partial<OperationNodeData>;
+  const count = data.opType && data.opType !== 'START' && data.opType !== 'FINISH'
+    ? operationRepeatCount(data.repeatCount) : 1;
+  const superscript = (n: number) => String(n).replace(/\d/g, digit => '⁰¹²³⁴⁵⁶⁷⁸⁹'[Number(digit)]);
+  return `${node.data.label || node.id}${count > 1 ? superscript(count) : ''}`;
+}
+
+function latexNodeLabel(node: TuringNode, inMath = false): string {
+  const data = node.data as Partial<OperationNodeData>;
+  const count = data.opType && data.opType !== 'START' && data.opType !== 'FINISH'
+    ? operationRepeatCount(data.repeatCount) : 1;
+  return `${escapeLatex(String(node.data.label || node.id))}${count > 1 ? inMath ? `^{${count}}` : `$^{${count}}$` : ''}`;
+}
 /**
  * Export project to JSON string
  */
@@ -94,7 +110,7 @@ export function exportToLaTeX(project: ProjectSession): string {
   const { mode, subMode, alphabet, rules5, rules4, nodes, edges, subMachines } = project;
   const blank = escapeLatex(alphabet.blankSymbol);
   const symbols = alphabet.symbols.map(escapeLatex).join(', ');
-  const states = nodes.map((n) => escapeLatex(n.data.label || n.id)).join(', ');
+  const states = nodes.map((n) => latexNodeLabel(n, true)).join(', ');
 
   let latex = `% Отчет по Машине Тьюринга: ${project.name}\n`;
   latex += `% Сгенерировано в nojstd\n\n`;
@@ -169,7 +185,7 @@ export function exportToTikZ(project: ProjectSession): string {
   for (const n of nodes) {
     const x = ((n.position.x - minX) / 80).toFixed(2);
     const y = (-((n.position.y - minY) / 80)).toFixed(2);
-    const label = escapeLatex(String(n.data.label || n.id));
+    const label = latexNodeLabel(n);
     const isState = mode === '5-tuple' || subMode === 'state-graph';
     const stateData = n.data as StateNodeData;
     const opData = n.data as OperationNodeData;
@@ -239,7 +255,7 @@ export function exportToPlantUML(project: ProjectSession): string {
 
   // Node definitions
   for (const n of nodes) {
-    const label = String(n.data.label || n.id).replace(/"/g, '\\"');
+    const label = nodeLabel(n).replace(/"/g, '\\"');
     puml += `state "${label}" as ${cleanId(n.id)}\n`;
     const isEnd =
       (n.data as StateNodeData).stateType === 'halt' ||

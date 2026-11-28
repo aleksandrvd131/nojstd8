@@ -3,11 +3,9 @@
   "3": "ports.ts",
   "8": "package.json",
   "9": "check-graph-freshness.mjs",
-  "13": "demoProjects.ts",
+  "13": "storage.ts",
   "14": "dependencies",
   "15": "scripts",
   "16": "setup.ts",
-  "17": "vitest",
-  "23": "@xyflow/react",
-  "24": "Bi-directional Binding (Canvas <-> Tables/Matrix)"
+  "17": "vitest"
 }

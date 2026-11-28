@@ -9,6 +9,28 @@ import { tokenizeTapeInput } from './simulator';
 const RESERVED_SYMBOLS = new Set(['L', 'R', 'N', '<', '>', '.']);
 const TERMINAL_STATE_TYPES = new Set(['halt', 'accept', 'reject']);
 
+// Position, selection and measured dimensions do not affect diagnostics.
+// Share the result between consumers without rerunning validation on a drag.
+let cachedSession: ProjectSession | undefined;
+let cachedIssues: ValidationIssue[] = [];
+export function validateMachineCached(session: ProjectSession): ValidationIssue[] {
+  const old = cachedSession;
+  const sameNodes = old && old.nodes.length === session.nodes.length &&
+    old.nodes.every((node, i) => node.id === session.nodes[i].id && node.data === session.nodes[i].data);
+  const sameEdges = old && old.edges.length === session.edges.length &&
+    old.edges.every((edge, i) => edge.id === session.edges[i].id &&
+      edge.source === session.edges[i].source && edge.target === session.edges[i].target &&
+      edge.data === session.edges[i].data);
+  if (old && old.id === session.id && old.mode === session.mode && old.subMode === session.subMode &&
+      old.alphabet === session.alphabet && old.subMachines === session.subMachines &&
+      old.rules4 === session.rules4 && old.rules5 === session.rules5 &&
+      old.initialTape === session.initialTape && old.testCases === session.testCases &&
+      sameNodes && sameEdges) return cachedIssues;
+  cachedSession = session;
+  cachedIssues = validateMachine(session);
+  return cachedIssues;
+}
+
 export function validateMachine(session: ProjectSession): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const { mode, subMode, nodes, edges, rules5, rules4, alphabet, subMachines } = session;

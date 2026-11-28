@@ -62,33 +62,57 @@ export function autoLayoutGraph(
   direction = 'auto'
 ): TuringNode[] {
   if (direction === 'auto') {
-    const layout = autoLayoutGraph(nodes, edges, 'balanced');
-    const links = edges.filter((edge) => edge.source !== edge.target);
+    // Return transitions do not change the forward sequence. In particular,
+    // a loop on a long chain should not turn the whole diagram into one row.
+    const feedback = findFeedbackEdgeIds(nodes, edges);
+    const links = edges.filter((edge) => edge.source !== edge.target && !feedback.has(edge.id));
     const incoming = new Map(nodes.map((node) => [node.id, 0]));
-    const outgoing = new Map(nodes.map((node) => [node.id, 0]));
+    const outgoing = new Map(nodes.map((node) => [node.id, [] as string[]]));
     for (const edge of links) {
+      if (!incoming.has(edge.source) || !incoming.has(edge.target)) continue;
       incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
-      outgoing.set(edge.source, (outgoing.get(edge.source) ?? 0) + 1);
+      outgoing.get(edge.source)!.push(edge.target);
     }
-    // A long, unbranched sequence is easier to follow as a few horizontal
-    // rows than as either one enormous row or a single vertical column.
-    let isChain = nodes.length >= 6 && links.length === nodes.length - 1 &&
-      nodes.every((node) => (incoming.get(node.id) ?? 0) <= 1 && (outgoing.get(node.id) ?? 0) <= 1) &&
-      nodes.filter((node) => incoming.get(node.id) === 0).length === 1;
-    if (isChain) {
-      const visited = new Set<string>();
-      let current: string | undefined = nodes.find((node) => incoming.get(node.id) === 0)?.id;
-      while (current && !visited.has(current)) {
-        visited.add(current);
-        current = links.find((edge) => edge.source === current)?.target;
+    // A sequence can also have shortcut transitions. Find a spanning path in
+    // the acyclic forward graph rather than requiring every degree to be one.
+    const queue = nodes.filter(node => incoming.get(node.id) === 0).map(node => node.id);
+    const length = new Map(nodes.map(node => [node.id, 1]));
+    const previous = new Map<string, string>();
+    for (let i = 0; i < queue.length; i++) {
+      const id = queue[i];
+      for (const target of outgoing.get(id) ?? []) {
+        if (length.get(target)! < length.get(id)! + 1) {
+          length.set(target, length.get(id)! + 1);
+          previous.set(target, id);
+        }
+        incoming.set(target, incoming.get(target)! - 1);
+        if (incoming.get(target) === 0) queue.push(target);
       }
-      isChain = visited.size === nodes.length;
     }
-    if (!isChain) return layout;
-    const ordered = [...layout].sort((a, b) => a.position.x - b.position.x);
+    const end = nodes.find(node => length.get(node.id) === nodes.length);
+    if (nodes.length < 6 || !end) return autoLayoutGraph(nodes, edges, 'balanced');
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const ordered: TuringNode[] = [];
+    let current: string | undefined = end.id;
+    while (current) {
+      ordered.push(byId.get(current)!);
+      current = previous.get(current);
+    }
+    ordered.reverse();
     const width = Math.max(...nodes.map((node) => nodeBox(node).width));
     const height = Math.max(...nodes.map((node) => nodeBox(node).height));
-    const columns = Math.max(4, Math.ceil(Math.sqrt(nodes.length * 1.5)));
+    // Compare a bounded number of widths, using only inexpensive geometry.
+    // Reserve generous gutters for wire labels and return transitions.
+    const ideal = Math.max(4, Math.ceil(Math.sqrt(nodes.length * 1.5)));
+    const choices = [...new Set([ideal - 1, ideal, ideal + 1].map(c => Math.max(4, Math.min(nodes.length, c))))];
+    const score = (columns: number) => {
+      const rows = Math.ceil(nodes.length / columns);
+      const w = columns * width + (columns - 1) * 100;
+      const h = rows * height + (rows - 1) * 140;
+      const aspect = w / h;
+      return w * h * (1 + 0.15 * Math.abs(Math.log(aspect / 2.5)));
+    };
+    const columns = choices.reduce((best, choice) => score(choice) < score(best) ? choice : best);
     const positions = new Map(ordered.map((node, index) => {
       const row = Math.floor(index / columns);
       const column = index % columns;
@@ -97,7 +121,7 @@ export function autoLayoutGraph(
         y: 36 + row * (height + 140),
       }];
     }));
-    return layout.map((node) => ({ ...node, position: positions.get(node.id)! }));
+    return nodes.map((node) => ({ ...node, position: positions.get(node.id)! }));
   }
   const balanced = direction === 'balanced';
   const g = new dagre.graphlib.Graph({ multigraph: true });
@@ -141,16 +165,25 @@ export function autoLayoutGraph(
     g.setNode(n.id, { width, height });
   });
 
+  const forwardTargets = new Map<string, Set<string>>();
+  const forwardIncoming = new Map<string, string[]>();
+  if (balanced) for (const edge of edges) {
+    if (feedbackEdges.has(edge.id)) continue;
+    const targets = forwardTargets.get(edge.source) ?? new Set<string>();
+    targets.add(edge.target);
+    forwardTargets.set(edge.source, targets);
+    const sources = forwardIncoming.get(edge.target) ?? [];
+    sources.push(edge.source);
+    forwardIncoming.set(edge.target, sources);
+  }
   edges.forEach((e, index) => {
     // Back-edges describe cycles, not forward flow. Leaving them out keeps a
     // small return transition from pulling an entire branch into a wide loop.
     if (feedbackEdges.has(e.id) || branches.has(e.source) || branches.has(e.target)) return;
     // A short detour that rejoins a direct transition is a side branch,
     // not an extra stage that should push the destination further right.
-    if (balanced && edges.some((entry) =>
-      entry.target === e.source && entry.source !== e.target &&
-      !feedbackEdges.has(entry.id) &&
-      edges.some((direct) => direct.source === entry.source && direct.target === e.target && !feedbackEdges.has(direct.id))
+    if (balanced && (forwardIncoming.get(e.source) ?? []).some(source =>
+      source !== e.target && forwardTargets.get(source)?.has(e.target)
     )) return;
     g.setEdge(e.source, e.target, {}, `${e.id}-${index}`);
   });
